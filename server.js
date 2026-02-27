@@ -66,8 +66,9 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
   try {
     const query = `
       WITH RECURSIVE hours AS (
-        SELECT 0 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 22
-      ),
+    -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
+    SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
+),
       days AS (
         SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date
       )
@@ -94,8 +95,9 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   try {
     const query = `
       WITH RECURSIVE hours AS (
-        SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 21
-      ),
+    -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
+    SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
+),
       days AS (
         SELECT generate_series(
           date_trunc('month', make_date($2, $1, 1)),

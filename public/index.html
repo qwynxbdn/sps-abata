@@ -930,60 +930,7 @@ app.downloadMatrixReport = async () => {
     UI.hideLoader();
 };
 
-    async function downloadMatrixReport() {
-      const month = document.getElementById('filterMonth').value;
-      const year = document.getElementById('filterYear').value;
-
-      const resp = await fetch(`/api/reports/matrix?month=${month}&year=${year}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      const result = await resp.json();
-
-      if (!result.ok) return alert("Gagal mengambil data matrix");
-
-      // Kelompokkan data berdasarkan Jam Slot dan Lokasi
-      const matrix = {};
-      result.data.forEach(row => {
-        const key = `${row.jam_slot} | ${row.lokasi}`;
-        if (!matrix[key]) matrix[key] = {};
-        matrix[key][row.tgl] = row.inisial || "";
-      });
-
-      const body = [];
-      // Buat Header Tanggal (1-31)
-      const header = [{ text: 'Jam | Lokasi', style: 'tableHeader' }];
-      for (let i = 1; i <= 31; i++) header.push({ text: i.toString(), style: 'tableHeader' });
-      body.push(header);
-
-      // Isi Baris Matrix
-      Object.keys(matrix).sort().forEach(key => {
-        const row = [{ text: key, fontSize: 8 }];
-        for (let i = 1; i <= 31; i++) {
-          row.push({ text: matrix[key][i] || "", fontSize: 7, alignment: 'center' });
-        }
-        body.push(row);
-      });
-
-      const docDefinition = {
-        pageOrientation: 'landscape',
-        content: [
-          { text: `LAPORAN PATROLI MATRIX - PERIODE ${month}/${year}`, style: 'header' },
-          {
-            table: {
-              headerRows: 1,
-              widths: [80, ...Array(31).fill(12)],
-              body: body
-            }
-          }
-        ],
-        styles: {
-          header: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] },
-          tableHeader: { fontSize: 8, bold: true, fillColor: '#eeeeee' }
-        }
-      };
-
-      pdfMake.createPdf(docDefinition).download(`Matrix-Patroli-${month}-${year}.pdf`);
-    }
+    
   </script>
 </body>
 

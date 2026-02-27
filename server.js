@@ -244,15 +244,14 @@ if (process.env.NODE_ENV !== 'production') {
 // BARIS INI SANGAT WAJIB UNTUK VERCEL:
 module.exports = app;
 
+// --- ENDPOINT REKAP BULANAN ---
 app.get('/api/reports/monthly', authenticateToken, async (req, res) => {
-  const { month, year } = req.query; // Contoh: month=10, year=2023
-  
+  const { month, year } = req.query;
+
   try {
     const query = `
       WITH RECURSIVE hours AS (
-        SELECT 0 AS start_hour
-        UNION ALL
-        SELECT start_hour + 2 FROM hours WHERE start_hour < 22
+        SELECT 0 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 22
       ),
       days AS (
         SELECT generate_series(
@@ -262,12 +261,11 @@ app.get('/api/reports/monthly', authenticateToken, async (req, res) => {
         )::date AS date
       )
       SELECT 
-        d.date,
-        h.start_hour || ':00 - ' || (h.start_hour + 2) || ':00' AS shift_window,
-        c.Name AS location,
-        l.Username AS guard_name,
-        l.Timestamp AS scan_time,
-        CASE WHEN l.LogId IS NULL THEN 'MISSING' ELSE 'OK' END AS status
+        TO_CHAR(d.date, 'DD/MM/YYYY') as tanggal,
+        h.start_hour || ':00 - ' || (h.start_hour + 2) || ':00' AS window,
+        c.Name AS lokasi,
+        COALESCE(l.Username, '-') AS petugas,
+        CASE WHEN l.LogId IS NULL THEN 'ABSENT' ELSE 'OK' END AS status
       FROM days d
       CROSS JOIN hours h
       CROSS JOIN Checkpoints c
@@ -278,11 +276,12 @@ app.get('/api/reports/monthly', authenticateToken, async (req, res) => {
         EXTRACT(HOUR FROM l.Timestamp) < (h.start_hour + 2)
       ORDER BY d.date ASC, h.start_hour ASC, c.Name ASC;
     `;
-    
-    const result = await pool.query(query, [month, year]);
-    res.json(result.rows);
+
+    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
+    res.json({ ok: true, data: result.rows }); // Hanya mengirim data mentah (JSON)
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

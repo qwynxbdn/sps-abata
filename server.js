@@ -85,32 +85,60 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
 // STATIC FILES & VERCEL ROUTING FIX
 // ==========================================
 
-// Sajikan folder public secara statis
-// ==========================================
-// STATIC FILES & VERCEL ROUTING (ULTIMATE FIX)
-// ==========================================
+// Endpoint untuk Report Matrix Bulanan
+// ... (Bagian atas seperti koneksi DB dan login tetap sama)
 
-// 1. Sajikan folder public secara statis
+// Endpoint Baru: Report Matrix Bulanan (Isian 3 Huruf)
+app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
+  const { month, year } = req.query;
+  try {
+    const query = `
+      WITH RECURSIVE hours AS (
+        SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 21
+      ),
+      days AS (
+        SELECT generate_series(
+          date_trunc('month', make_date($2, $1, 1)),
+          (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'),
+          interval '1 day'
+        )::date AS date
+      )
+      SELECT 
+        EXTRACT(DAY FROM d.date) as tgl,
+        TO_CHAR(make_timestamp(2000, 1, 1, h.start_hour, 0, 0), 'HH24:00') AS jam_slot,
+        c.Name AS lokasi,
+        UPPER(LEFT(COALESCE(l.Username, ''), 3)) AS inisial
+      FROM days d
+      CROSS JOIN hours h
+      CROSS JOIN Checkpoints c
+      LEFT JOIN PatrolLogs l ON 
+        l.CheckpointId = c.CheckpointId AND 
+        l.Timestamp::date = d.date AND
+        EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND 
+        EXTRACT(HOUR FROM l.Timestamp) < (h.start_hour + 2)
+      ORDER BY jam_slot ASC, lokasi ASC, tgl ASC;
+    `;
+    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// --- PERBAIKAN RUTE STATIS AGAR TIDAK ERROR 500 ---
 app.use(express.static(path.join(__dirname, "public")));
 
-// 2. Rute eksplisit untuk halaman utama
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// 3. Rute fallback jika user mengakses path manual (misal /dashboard)
-// Kita menggunakan regex sederhana yang diterima semua versi Express
+// Gunakan regex ini untuk menghindari PathError "Missing parameter name"
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ==========================================
-// EKSEKUSI
-// ==========================================
 module.exports = app;
 
+// Local Development
 if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`🚀 Server on http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
 }
-

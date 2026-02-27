@@ -286,7 +286,11 @@ app.get('/api/reports/monthly', authenticateToken, async (req, res) => {
   }
 });
 
-const PdfPrinter = require('pdfmake');
+// Memaksa Vercel mengambil versi Server dan mengatasi masalah format bundler
+let PdfPrinter = require('pdfmake/src/printer');
+if (typeof PdfPrinter !== 'function' && PdfPrinter.default) {
+  PdfPrinter = PdfPrinter.default;
+}
 
 // Font standar untuk PDF
 const fonts = {

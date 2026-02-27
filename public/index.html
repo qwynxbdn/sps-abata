@@ -877,7 +877,6 @@ app.downloadMatrixReport = async () => {
         const res = await apiCall(`reports/matrix?month=${month}&year=${year}`, null, 'GET');
         if(!res.ok) throw new Error("Gagal mengambil data matrix");
 
-        // 1. PENGELOMPOKKAN DATA: Lokasi -> Jam -> Tanggal
         const groupedData = {};
         res.data.forEach(row => {
             if (!groupedData[row.lokasi]) groupedData[row.lokasi] = {};
@@ -890,78 +889,69 @@ app.downloadMatrixReport = async () => {
             { text: `Periode: ${month}/${year} | Inisial 3 Huruf Petugas`, style: 'subHeader' }
         ];
 
-        // 2. GENERATE TABEL PER LOKASI (Agar tidak menumpuk dan tidak terpotong)
         const lokasiList = Object.keys(groupedData).sort();
         
         lokasiList.forEach((lokasi, index) => {
             content.push({ 
                 text: `TITIK LOKASI: ${lokasi.toUpperCase()}`, 
-                style: 'lokasiTitle',
-                pageBreak: index > 0 && index % 2 === 0 ? 'before' : undefined // Pindah halaman setiap 2 lokasi agar tidak sesak
+                style: 'lokasiTitle'
             });
 
             const tableBody = [];
-            
-            // Header Tanggal (1-31)
             const headerRow = [{ text: 'JAM', style: 'tableHeader' }];
             for (let i = 1; i <= 31; i++) {
                 headerRow.push({ text: i.toString(), style: 'tableHeader' });
             }
             tableBody.push(headerRow);
 
-            // Baris Data Berdasarkan Jam
             const jamSlots = Object.keys(groupedData[lokasi]).sort();
             jamSlots.forEach(jam => {
                 const row = [{ text: jam, style: 'jamCell' }];
                 for (let i = 1; i <= 31; i++) {
-                    row.push({ 
-                        text: groupedData[lokasi][jam][i] || "", 
-                        style: 'dataCell' 
-                    });
+                    row.push({ text: groupedData[lokasi][jam][i] || "", style: 'dataCell' });
                 }
                 tableBody.push(row);
             });
 
             content.push({
-                style: 'tableExample',
                 table: {
                     headerRows: 1,
-                    // Total lebar 760 poin (Landscape A4)
-                    // Jam (45pt) + 31 kolom (masing-masing 23pt)
-                    widths: [40, ...Array(31).fill(18.5)], 
+                    // PERHITUNGAN KETAT: 
+                    // Kolom Jam = 40pt
+                    // Kolom Tanggal = 31 x 21pt = 651pt
+                    // Total = 691pt (Sangat aman untuk A4 Landscape yang lebarnya 842pt)
+                    widths: [40, ...Array(31).fill(21)], 
                     body: tableBody
                 },
                 layout: {
-                    hLineWidth: () => 0.5,
-                    vLineWidth: () => 0.5,
-                    hLineColor: () => '#aaaaaa',
-                    vLineColor: () => '#aaaaaa'
-                }
+                    hLineWidth: (i, node) => 0.5,
+                    vLineWidth: (i, node) => 0.5,
+                    hLineColor: (i, node) => '#aaaaaa',
+                    vLineColor: (i, node) => '#aaaaaa'
+                },
+                margin: [0, 0, 0, 15] 
             });
-            
-            content.push({ text: '', margin: [0, 0, 0, 20] }); // Spasi antar lokasi
         });
 
         const docDefinition = {
             pageOrientation: 'landscape',
             pageSize: 'A4',
-            pageMargins: [25, 30, 25, 30],
+            pageMargins: [15, 20, 15, 20], // Margin diperkecil agar ruang lebih luas
             content: content,
             styles: {
                 mainHeader: { fontSize: 14, bold: true, alignment: 'center', margin: [0, 0, 0, 2] },
-                subHeader: { fontSize: 10, alignment: 'center', margin: [0, 0, 0, 15] },
-                lokasiTitle: { fontSize: 10, bold: true, color: '#0d6efd', margin: [0, 5, 0, 5], background: '#f0f7ff' },
+                subHeader: { fontSize: 9, alignment: 'center', margin: [0, 0, 0, 10] },
+                lokasiTitle: { fontSize: 9, bold: true, color: '#0d6efd', margin: [0, 5, 0, 2] },
                 tableHeader: { fontSize: 7, bold: true, fillColor: '#eeeeee', alignment: 'center' },
                 jamCell: { fontSize: 7, bold: true, alignment: 'center', fillColor: '#fafafa' },
-                dataCell: { fontSize: 6, alignment: 'center' },
-                tableExample: { margin: [0, 0, 0, 0] }
+                dataCell: { fontSize: 6, alignment: 'center' }
             }
         };
         
-        pdfMake.createPdf(docDefinition).download(`Matrix-Patroli-Per-Lokasi-${month}-${year}.pdf`);
+        pdfMake.createPdf(docDefinition).download(`Matrix-Patroli-${month}-${year}.pdf`);
 
     } catch (err) {
-        UI.alert('Error Report', err.message);
+        UI.alert('Error', err.message);
     }
     UI.hideLoader();
 };
@@ -971,5 +961,6 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 

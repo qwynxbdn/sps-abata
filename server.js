@@ -83,6 +83,36 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
+// API CRUD: USERS & CHECKPOINTS (WAJIB ADA)
+// ==========================================
+
+app.get("/api/users", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT UserId, Name, Username, Role, IsActive FROM Users ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/checkpoints", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM Checkpoints ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/patrollogs", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT LogId, Timestamp, Username, BarcodeValue, DistanceMeters, Result, Notes FROM PatrolLogs ORDER BY Timestamp DESC LIMIT 200");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/schedules", authenticateToken, async (req, res) => {
+  // Placeholder karena tabel schedules Anda belum dibuat detailnya
+  res.json({ ok: true, data: [] });
+});
+
+// ==========================================
 // STATIC FILES & VERCEL ROUTING FIX
 // ==========================================
 
@@ -144,3 +174,4 @@ if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
 }
+

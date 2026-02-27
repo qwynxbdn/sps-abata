@@ -1,5 +1,5 @@
 // ==========================================
-// File: server.js (VERSI FINAL - SEMUA FITUR AKTIF)
+// File: server.js (VERSI KOMPATIBEL DATABASE LAMA)
 // ==========================================
 require("dotenv").config();
 const express = require("express");
@@ -18,21 +18,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// --- HELPER: HITUNG JARAK GPS ---
-function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // metres
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // in metres
-}
-
-// --- AUTH MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -45,10 +30,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// ==========================================
-// API ROUTES: AUTH & PROFILE
-// ==========================================
-
+// --- AUTH & ME ---
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -71,39 +53,26 @@ app.get("/api/me", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false }); }
 });
 
-// ==========================================
-// API ROUTES: SCAN PATROL (YANG SEBELUMNYA HILANG)
-// ==========================================
-
+// --- SCAN (VERSI TANPA KOLOM GPS) ---
 app.post("/api/scan", authenticateToken, async (req, res) => {
-  const { barcode, lat, lng } = req.body;
+  const { barcode } = req.body;
   try {
-    // 1. Cari Checkpoint berdasarkan Barcode
     const cpRes = await pool.query("SELECT * FROM Checkpoints WHERE BarcodeValue = $1 AND Active = TRUE", [barcode]);
-    if (cpRes.rows.length === 0) return res.status(404).json({ ok: false, error: "Checkpoint tidak terdaftar!" });
+    if (cpRes.rows.length === 0) return res.status(404).json({ ok: false, error: "Checkpoint tidak ditemukan!" });
 
     const cp = cpRes.rows[0];
     
-    // 2. Cek Jarak (Geofencing)
-    const distance = getDistance(lat, lng, parseFloat(cp.latitude), parseFloat(cp.longitude));
-    if (distance > cp.radiusmeters) {
-      return res.status(400).json({ ok: false, error: `Terlalu jauh! Jarak Anda ${Math.round(distance)}m (Max: ${cp.radiusmeters}m)` });
-    }
-
-    // 3. Simpan Log Patroli
+    // Simpan hanya kolom yang pasti ada di database Anda
     await pool.query(
-      "INSERT INTO PatrolLogs (CheckpointId, UserId, Username, BarcodeValue, Timestamp, Latitude, Longitude, DistanceMeters, Result) VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8)",
-      [cp.checkpointid, req.user.userId, req.user.username, barcode, lat, lng, Math.round(distance), 'OK']
+      "INSERT INTO PatrolLogs (CheckpointId, UserId, Username, BarcodeValue, Timestamp, Result) VALUES ($1, $2, $3, $4, NOW(), $5)",
+      [cp.checkpointid, req.user.userId, req.user.username, barcode, 'OK']
     );
 
-    res.json({ ok: true, data: { locationName: cp.name, distance: Math.round(distance) } });
+    res.json({ ok: true, data: { locationName: cp.name, distance: 0 } });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// ==========================================
-// API ROUTES: DATA MANAGEMENT (CRUD)
-// ==========================================
-
+// --- USERS CRUD ---
 app.get("/api/users", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query("SELECT UserId as \"UserId\", Name as \"Name\", Username as \"Username\", Role as \"Role\", IsActive as \"IsActive\" FROM Users ORDER BY Name ASC");
@@ -133,52 +102,34 @@ app.put("/api/users", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+// --- CHECKPOINTS CRUD ---
 app.get("/api/checkpoints", authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Latitude as \"Latitude\", Longitude as \"Longitude\", RadiusMeters as \"RadiusMeters\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
+    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
     res.json({ ok: true, data: result.rows });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.post("/api/checkpoints", authenticateToken, async (req, res) => {
-  const { Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  const { Name, BarcodeValue, Active } = req.body;
   try {
-    await pool.query("INSERT INTO Checkpoints (Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active) VALUES ($1, $2, $3, $4, $5, $6)", [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active]);
+    await pool.query("INSERT INTO Checkpoints (Name, BarcodeValue, Active) VALUES ($1, $2, $3)", [Name, BarcodeValue, Active]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.put("/api/checkpoints", authenticateToken, async (req, res) => {
-  const { CheckpointId, Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  const { CheckpointId, Name, BarcodeValue, Active } = req.body;
   try {
-    await pool.query("UPDATE Checkpoints SET Name=$1, BarcodeValue=$2, Latitude=$3, Longitude=$4, RadiusMeters=$5, Active=$6 WHERE CheckpointId=$7", [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active, CheckpointId]);
+    await pool.query("UPDATE Checkpoints SET Name=$1, BarcodeValue=$2, Active=$3 WHERE CheckpointId=$4", [Name, BarcodeValue, Active, CheckpointId]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+// --- LOGS & REPORTS ---
 app.get("/api/patrollogs", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query("SELECT LogId as \"LogId\", Timestamp as \"Timestamp\", Username as \"Username\", BarcodeValue as \"BarcodeValue\", Result as \"Result\" FROM PatrolLogs ORDER BY Timestamp DESC LIMIT 200");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-// ==========================================
-// API ROUTES: REPORTS
-// ==========================================
-
-app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
-  const { month, year } = req.query;
-  try {
-    const query = `
-      WITH RECURSIVE hours AS (SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23),
-      days AS (SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date)
-      SELECT TO_CHAR(d.date, 'DD/MM/YYYY') as tanggal, h.start_hour || ':00 - ' || (h.start_hour + 2) || ':00' AS window, c.Name AS lokasi, COALESCE(l.Username, '-') AS petugas, CASE WHEN l.LogId IS NULL THEN 'ABSENT' ELSE 'OK' END AS status
-      FROM days d CROSS JOIN hours h CROSS JOIN Checkpoints c
-      LEFT JOIN PatrolLogs l ON l.CheckpointId = c.CheckpointId AND l.Timestamp::date = d.date AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < (h.start_hour + 2)
-      ORDER BY d.date ASC, h.start_hour ASC, c.Name ASC;
-    `;
-    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
     res.json({ ok: true, data: result.rows });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -199,9 +150,7 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// ==========================================
-// STATIC FILES & ROUTING FIX
-// ==========================================
+// --- ROUTING FIX ---
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));

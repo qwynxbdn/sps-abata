@@ -875,55 +875,66 @@ app.downloadMatrixReport = async () => {
     
     try {
         const res = await apiCall(`reports/matrix?month=${month}&year=${year}`, null, 'GET');
-        
         if(!res.ok) throw new Error("Gagal mengambil data matrix");
 
-        // Kelompokkan data berdasarkan Jam Slot dan Lokasi
-        const matrix = {};
+        // 1. Grouping data: Lokasi -> Jam -> Tanggal
+        const groupedData = {};
         res.data.forEach(row => {
-            const key = `${row.jam_slot} | ${row.lokasi}`;
-            if(!matrix[key]) matrix[key] = {};
-            matrix[key][row.tgl] = row.inisial || "";
+            if (!groupedData[row.lokasi]) groupedData[row.lokasi] = {};
+            if (!groupedData[row.lokasi][row.jam_slot]) groupedData[row.lokasi][row.jam_slot] = {};
+            groupedData[row.lokasi][row.jam_slot][row.tgl] = row.inisial || "";
         });
 
-        const body = [];
-        // Buat Header Tanggal (1-31)
-        const header = [{ text: 'Jam | Lokasi', style: 'tableHeader' }];
-        for(let i=1; i<=31; i++) header.push({ text: i.toString(), style: 'tableHeader' });
-        body.push(header);
+        const content = [
+            { text: `LAPORAN MATRIX PATROLI - BULAN ${month} TAHUN ${year}`, style: 'mainHeader' },
+            { text: `Keterangan: Diisi dengan inisial 3 huruf petugas.`, style: 'subHeader' }
+        ];
 
-        // Isi Baris Matrix
-        Object.keys(matrix).sort().forEach(key => {
-            const row = [{ text: key, fontSize: 7 }];
-            for(let i=1; i<=31; i++) {
-                row.push({ text: matrix[key][i] || "", fontSize: 6, alignment: 'center' });
-            }
-            body.push(row);
+        // 2. Buat tabel terpisah untuk setiap Lokasi
+        Object.keys(groupedData).sort().forEach(lokasi => {
+            content.push({ text: `LOKASI: ${lokasi}`, style: 'lokasiHeader' });
+
+            const tableBody = [];
+            // Header Tanggal 1-31
+            const headerRow = [{ text: 'WAKTU', style: 'tableHeader' }];
+            for (let i = 1; i <= 31; i++) headerRow.push({ text: i.toString(), style: 'tableHeader' });
+            tableBody.push(headerRow);
+
+            // Isi Baris Jam
+            const jamSlots = Object.keys(groupedData[lokasi]).sort();
+            jamSlots.forEach(jam => {
+                const row = [{ text: jam, fontSize: 8, bold: true, alignment: 'center' }];
+                for (let i = 1; i <= 31; i++) {
+                    row.push({ text: groupedData[lokasi][jam][i] || "", fontSize: 7, alignment: 'center' });
+                }
+                tableBody.push(row);
+            });
+
+            content.push({
+                table: {
+                    headerRows: 1,
+                    dontBreakRows: true, // Mencegah baris terpotong antar halaman
+                    widths: [45, ...Array(31).fill(16.5)], // Total lebar landscape A4
+                    body: tableBody
+                },
+                margin: [0, 0, 0, 20] // Jarak antar tabel lokasi
+            });
         });
 
         const docDefinition = {
             pageOrientation: 'landscape',
             pageSize: 'A4',
-            pageMargins: [20, 20, 20, 20],
-            content: [
-                { text: `LAPORAN PATROLI MATRIX (CHECKLIST)`, style: 'header' },
-                { text: `Periode: ${month}/${year} | Inisial Petugas`, style: 'subheader' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: [100, ...Array(31).fill(15)],
-                        body: body
-                    }
-                }
-            ],
-            styles: { 
-                header: { fontSize: 14, bold: true, alignment: 'center', margin: [0,0,0,5] },
-                subheader: { fontSize: 10, alignment: 'center', margin: [0,0,0,15] },
-                tableHeader: { fontSize: 7, bold: true, fillColor: '#eeeeee', alignment: 'center' }
+            pageMargins: [20, 40, 20, 40],
+            content: content,
+            styles: {
+                mainHeader: { fontSize: 14, bold: true, alignment: 'center', margin: [0, 0, 0, 5] },
+                subHeader: { fontSize: 9, alignment: 'center', margin: [0, 0, 0, 20], italic: true },
+                lokasiHeader: { fontSize: 11, bold: true, color: '#0d6efd', margin: [0, 10, 0, 5] },
+                tableHeader: { fontSize: 8, bold: true, fillColor: '#f2f2f2', alignment: 'center' }
             }
         };
         
-        pdfMake.createPdf(docDefinition).download(`Matrix-Patroli-${month}-${year}.pdf`);
+        pdfMake.createPdf(docDefinition).download(`Matrix-Grouped-${month}-${year}.pdf`);
     } catch (err) {
         UI.alert('Error', err.message);
     }
@@ -935,3 +946,4 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+

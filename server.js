@@ -66,9 +66,9 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
   try {
     const query = `
       WITH RECURSIVE hours AS (
-    -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
-    SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
-),
+        -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
+        SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
+      ),
       days AS (
         SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date
       )
@@ -113,21 +113,17 @@ app.get("/api/schedules", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// STATIC FILES & VERCEL ROUTING FIX
+// REPORT MATRIX ENDPOINT
 // ==========================================
 
-// Endpoint untuk Report Matrix Bulanan
-// ... (Bagian atas seperti koneksi DB dan login tetap sama)
-
-// Endpoint Baru: Report Matrix Bulanan (Isian 3 Huruf)
 app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   const { month, year } = req.query;
   try {
     const query = `
       WITH RECURSIVE hours AS (
-    -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
-    SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
-),
+        -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
+        SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
+      ),
       days AS (
         SELECT generate_series(
           date_trunc('month', make_date($2, $1, 1)),
@@ -155,7 +151,10 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// --- PERBAIKAN RUTE STATIS AGAR TIDAK ERROR 500 ---
+// ==========================================
+// STATIC FILES & VERCEL ROUTING FIX
+// ==========================================
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
@@ -174,4 +173,3 @@ if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
 }
-

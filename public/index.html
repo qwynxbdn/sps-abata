@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security Patrol System - Enterprise</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    /* ==========================================
+       STYLESHEET
+       ========================================== */
+    body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
+    .sidebar { top: 56px; bottom: 0; z-index: 100; padding: 0; box-shadow: inset -1px 0 0 rgba(0,0,0,.1); }
+    .sidebar .nav-link { font-weight: 500; color: #333; padding: 0.8rem 1rem; cursor: pointer; border-radius: 0.25rem; margin: 0.2rem 0.5rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #0d6efd; background-color: #e9ecef; }
+    .sidebar .nav-link i { margin-right: 10px; font-size: 1.1rem; }
+    
+    .card { border: none; border-radius: 0.5rem; }
+    .table th { font-weight: 600; color: #495057; }
+    
+    @keyframes blinker { 50% { opacity: 0; } }
+    .blink-text { animation: blinker 1.5s linear infinite; }
+
+    /* PENGATURAN CETAK KHUSUS QR CODE */
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { 
+        position: absolute; left: 0; top: 0; width: 100%; 
+        display: flex !important; flex-direction: column; 
+        align-items: center; justify-content: center; padding-top: 50px; 
+      }
+      .print-box { border: 3px dashed #333; padding: 30px; text-align: center; display: inline-block; }
+      .print-title { font-size: 32px; font-weight: bold; margin-bottom: 20px; font-family: sans-serif; text-transform: uppercase;}
+      .print-subtitle { font-size: 18px; margin-top: 15px; font-family: monospace; font-weight: bold;}
+      .print-helper { font-size: 14px; margin-top: 5px; color: #555;}
+    }
+  </style>
+</head>
+<body class="bg-light">
+
+  <div id="loader" class="d-none justify-content-center align-items-center position-fixed w-100 h-100 bg-white" style="z-index:9999; opacity:0.8; top:0; left:0;">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <div id="view-login" class="container vh-100 d-flex justify-content-center align-items-center">
+    <div class="card shadow-sm" style="width: 100%; max-width: 400px;">
+      <div class="card-body p-4">
+        <div class="text-center mb-4">
+          <i class="bi bi-shield-lock-fill text-primary" style="font-size: 3rem;"></i>
+          <h4 class="mt-2 fw-bold">Patrol System</h4>
+          <p class="text-muted small">Node.js Enterprise Edition</p>
+        </div>
+        <form id="loginForm">
+          <div class="mb-3"><label class="form-label">Username</label><input type="text" id="loginUsername" class="form-control" required></div>
+          <div class="mb-4"><label class="form-label">Password</label><input type="password" id="loginPassword" class="form-control" required></div>
+          <button type="submit" class="btn btn-primary w-100 fw-bold">Sign In</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-app" class="d-none">
+    
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+      <div class="container-fluid">
+        <span class="navbar-brand fw-bold"><i class="bi bi-shield-check me-2"></i>Patrol System</span>
+        <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse justify-content-end d-none d-lg-flex">
+          <span class="text-light me-3" id="topbarUser">User Name (Role)</span>
+          <button class="btn btn-outline-light btn-sm" onclick="app.logout()">Logout</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid">
+      <div class="row">
+        
+        <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse shadow-sm vh-100 position-fixed overflow-auto">
+          <div class="position-sticky pt-3"><ul class="nav flex-column" id="navMenu"></ul></div>
+        </nav>
+
+        <div class="offcanvas offcanvas-start bg-white" tabindex="-1" id="sidebarOffcanvas">
+          <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title fw-bold">Menu</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <ul class="nav flex-column" id="navMenuMobile"></ul>
+            <hr>
+            <div class="mt-auto">
+               <span class="d-block mb-2 text-muted" id="mobileUser">User Name</span>
+               <button class="btn btn-danger w-100 btn-sm" onclick="app.logout()">Logout</button>
+            </div>
+          </div>
+        </div>
+
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 pt-4 pb-5">
+          
+          <div id="content-dashboard" class="content-section d-none">
+            <h2 class="fw-bold mb-4">Dashboard</h2>
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <div class="card text-white bg-primary shadow-sm h-100">
+                  <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-person-badge"></i> Profil Saya</h5>
+                    <p class="card-text mt-3" id="dashUserInfo">Loading...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="content-scan" class="content-section d-none">
+            <h2 class="fw-bold mb-4">Scan Patrol</h2>
+            <div class="row justify-content-center">
+              <div class="col-md-6 col-lg-5">
+                <div class="card shadow-sm border-0">
+                  <div class="card-body text-center p-4">
+                    
+                    <div class="alert alert-info py-2 mb-4" id="gpsStatus">
+                      <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                      Menunggu Sinyal GPS...
+                    </div>
+
+                    <div id="reader-container" class="mb-3 d-none">
+                      <div id="reader" style="width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #0d6efd; background:#000;"></div>
+                      <p class="text-primary mt-2 mb-0 fw-bold blink-text"><i class="bi bi-upc-scan"></i> Arahkan kamera ke QR Code Checkpoint...</p>
+                    </div>
+                    
+                    <button id="btnStartScan" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm mb-3" onclick="app.startLiveScanner()">
+                      <i class="bi bi-camera-video-fill me-2"></i> Buka Kamera & Scan
+                    </button>
+                    
+                    <button id="btnStopScan" class="btn btn-danger btn-lg w-100 fw-bold shadow-sm mb-3 d-none" onclick="app.stopLiveScanner()">
+                      <i class="bi bi-stop-circle-fill me-2"></i> Tutup Kamera
+                    </button>
+
+                    <hr class="my-4">
+                    <p class="text-muted small">Atau input ID Checkpoint manual:</p>
+                    <div class="input-group">
+                      <input type="text" id="manualBarcode" class="form-control" placeholder="ID Checkpoint">
+                      <button class="btn btn-outline-secondary" onclick="app.submitManualScan()">Submit</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="content-data" class="content-section d-none">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-3">
+              <h2 class="fw-bold" id="dataTitle">Manajemen Data</h2>
+              <button class="btn btn-primary d-none" id="btnAddNew" onclick="app.openDataModal()"><i class="bi bi-plus-lg"></i> Tambah Baru</button>
+            </div>
+            <div class="card shadow-sm">
+              <div class="card-body table-responsive">
+                <table class="table table-hover align-middle" id="dataTable">
+                  <thead class="table-light" id="dataTableHead"></thead>
+                  <tbody id="dataTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="dataModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dataModalTitle">Form</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="dataModalBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="button" class="btn btn-primary" id="dataModalSaveBtn">Simpan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="printArea" class="d-none"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // --- 1. STATE & UTILITIES ---
+    const appState = { 
+      token: localStorage.getItem('ptrl_token'), 
+      user: null, 
+      currentView: 'dashboard', 
+      gps: { lat: null, lng: null }, 
+      html5QrCode: null, 
+      currentTableData: [], 
+      currentTableType: null 
+    };
+
+    const UI = {
+      showLoader: () => document.getElementById('loader').classList.remove('d-none'),
+      hideLoader: () => document.getElementById('loader').classList.add('d-none'),
+      toast: (msg, icon='success') => Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 3000 }),
+      alert: (title, text, icon='error') => Swal.fire({ title, text, icon })
+    };
+
+    // --- 2. API CALL WRAPPER (Fetch API ke Node.js) ---
+    async function apiCall(endpoint, payload = null, method = 'GET') {
+      if (payload && method === 'GET') method = 'POST'; // Auto-fix method jika ada payload
+      
+      const options = {
+        method: method,
+        headers: { 'Content-Type': 'application/json' }
+      };
+      
+      if (appState.token) {
+        options.headers['Authorization'] = 'Bearer ' + appState.token;
+      }
+      if (payload) options.body = JSON.stringify(payload);
+
+      try {
+        const response = await fetch('/api/' + endpoint, options);
+        const data = await response.json();
+        
+        if (!data.ok) throw new Error(data.error || 'Terjadi kesalahan pada server');
+        return data;
+      } catch (err) {
+        throw err;
+      }
+    }
+
+    // --- 3. INIT & AUTHENTICATION ---
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (appState.token) {
+        UI.showLoader();
+        try {
+          const res = await apiCall('me', null, 'GET');
+          if (res.ok) { 
+            appState.user = res.data; 
+            initApp(); 
+          } else { showLogin(); }
+        } catch(e) { showLogin(); }
+        UI.hideLoader();
+      } else { showLogin(); }
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      UI.showLoader();
+      try {
+        const payload = { 
+          username: document.getElementById('loginUsername').value, 
+          password: document.getElementById('loginPassword').value 
+        };
+        const res = await apiCall('login', payload, 'POST');
+        
+        if (res.ok) {
+          appState.token = res.data.token; 
+          appState.user = res.data.user;
+          localStorage.setItem('ptrl_token', appState.token);
+          UI.toast('Login Berhasil'); 
+          initApp();
+        }
+      } catch(e) { UI.alert('Login Gagal', e.message); }
+      UI.hideLoader();
+    });
+
+    function showLogin() { 
+      document.getElementById('view-login').classList.remove('d-none'); 
+      document.getElementById('view-app').classList.add('d-none'); 
+    }
+
+    function initApp() {
+      document.getElementById('view-login').classList.add('d-none'); 
+      document.getElementById('view-app').classList.remove('d-none');
+      
+      const topText = `${appState.user.Name} (${appState.user.Role})`;
+      document.getElementById('topbarUser').innerText = topText; 
+      document.getElementById('mobileUser').innerText = topText;
+      
+      buildMenu(); 
+      navigate('dashboard');
+    }
+
+    const app = {
+      logout: () => { localStorage.removeItem('ptrl_token'); location.reload(); },
+      hasPerm: (p) => {
+        if(!appState.user || !appState.user.permissions) return false;
+        const perms = appState.user.permissions;
+        return perms.includes('all') || perms.includes(p) || perms.includes(p.split('.')[0]+'.*');
+      }
+    };
+
+    // --- 4. NAVIGATION & MENU ---
+    const menus = [
+      { id: 'dashboard', label: 'Dashboard', icon: 'bi-house-door', perm: '' },
+      { id: 'scan', label: 'Scan Patrol', icon: 'bi-upc-scan', perm: 'scan.create' },
+      { id: 'PatrolLogs', label: 'Patrol Logs', icon: 'bi-journal-text', perm: 'logs.read' },
+      { id: 'Checkpoints', label: 'Checkpoints', icon: 'bi-geo-alt', perm: 'checkpoints.read' },
+      { id: 'Schedules', label: 'Schedules', icon: 'bi-calendar-check', perm: 'schedules.read' },
+      { id: 'Users', label: 'Users', icon: 'bi-people', perm: 'users.read' }
+    ];
+
+    function buildMenu() {
+      let html = '';
+      menus.forEach(m => {
+        if (m.perm === '' || app.hasPerm(m.perm)) {
+          html += `<li class="nav-item"><a class="nav-link" id="nav-${m.id}" onclick="navigate('${m.id}')"><i class="bi ${m.icon}"></i> ${m.label}</a></li>`;
+        }
+      });
+      document.getElementById('navMenu').innerHTML = html; 
+      document.getElementById('navMenuMobile').innerHTML = html;
+    }
+
+    function navigate(viewId) {
+      document.querySelectorAll('.content-section').forEach(el => el.classList.add('d-none'));
+      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll(`#nav-${viewId}`).forEach(n => n.classList.add('active'));
+
+      // Matikan kamera jika pindah halaman
+      if (viewId !== 'scan') app.stopLiveScanner();
+
+      if (viewId === 'dashboard') {
+        document.getElementById('content-dashboard').classList.remove('d-none');
+        document.getElementById('dashUserInfo').innerHTML = `<b>Nama:</b> ${appState.user.Name} <br> <b>Role:</b> ${appState.user.Role}`;
+      } else if (viewId === 'scan') {
+        document.getElementById('content-scan').classList.remove('d-none'); 
+        initScanner();
+      } else {
+        document.getElementById('content-data').classList.remove('d-none'); 
+        loadDataTable(viewId);
+      }
+
+      // Tutup offcanvas mobile jika terbuka
+      const offcanvasInst = bootstrap.Offcanvas.getInstance(document.getElementById('sidebarOffcanvas'));
+      if (offcanvasInst) offcanvasInst.hide();
+    }
+
+    // --- 5. SCAN PATROL (BULLETPROOF IOS/ANDROID CAMERA) ---
+    let gpsWatchId = null;
+
+    function initScanner() {
+      const gpsStatus = document.getElementById('gpsStatus');
+      gpsStatus.className = "alert alert-info py-2 mb-4";
+      gpsStatus.innerHTML = `<div class="spinner-border spinner-border-sm me-2" role="status"></div> Menunggu Sinyal GPS...`;
+
+      if (navigator.geolocation) {
+        if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = navigator.geolocation.watchPosition(
+          pos => { 
+            appState.gps.lat = pos.coords.latitude; 
+            appState.gps.lng = pos.coords.longitude; 
+            gpsStatus.className = "alert alert-success py-2 mb-4 shadow-sm"; 
+            gpsStatus.innerHTML = `<i class="bi bi-geo-alt-fill"></i> Sinyal GPS Kuat (${pos.coords.accuracy.toFixed(1)}m acc)`; 
+          },
+          err => { 
+            gpsStatus.className = "alert alert-danger py-2 mb-4 shadow-sm"; 
+            gpsStatus.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Error: Mohon izinkan Akses Lokasi (GPS) browser.`; 
+          },
+          { enableHighAccuracy: true, maximumAge: 0 }
+        );
+      }
+
+      if (!appState.html5QrCode) {
+        appState.html5QrCode = new Html5Qrcode("reader");
+      }
+    }
+
+    app.startLiveScanner = async () => {
+      if (!appState.gps.lat) {
+        return UI.alert('GPS Belum Siap', 'Mohon tunggu status GPS menjadi hijau, atau pastikan pengaturan lokasi HP Anda aktif.');
+      }
+
+      document.getElementById('btnStartScan').classList.add('d-none');
+      document.getElementById('btnStopScan').classList.remove('d-none');
+      document.getElementById('reader-container').classList.remove('d-none');
+
+      try {
+        // [METODE PALING STABIL UNTUK IOS SAFARI] - Cari ID Hardware
+        const devices = await Html5Qrcode.getCameras();
+        
+        if (devices && devices.length) {
+          let cameraId = devices[0].id;
+          // Cari kamera belakang secara spesifik
+          for (let i = 0; i < devices.length; i++) {
+            if (devices[i].label.toLowerCase().includes("back") || devices[i].label.toLowerCase().includes("rear")) {
+              cameraId = devices[i].id; break;
+            }
+          }
+          if (cameraId === devices[0].id && devices.length > 1) cameraId = devices[devices.length - 1].id;
+
+          await appState.html5QrCode.start(
+            cameraId, 
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            async (decodedText) => {
+              app.stopLiveScanner(); 
+              UI.toast('QR Terbaca! Sedang memproses...', 'info');
+              await processScan(decodedText);
+            },
+            (errorMessage) => { /* Abaikan pesan pencarian QR frame-by-frame */ }
+          );
+        } else {
+           throw new Error("Kamera fisik tidak ditemukan di perangkat ini.");
+        }
+      } catch (err) {
+        console.error(err);
+        app.stopLiveScanner();
+        Swal.fire({
+          icon: 'error', title: 'Kamera Diblokir',
+          html: `<p>Sistem gagal mengakses kamera Anda.</p>
+                 <ol class="text-start small text-muted">
+                   <li>Jika Anda membuka via <b>WhatsApp/Telegram</b>, buka di browser utama (Safari/Chrome).</li>
+                   <li>Pastikan Izin Kamera (Camera Permissions) sudah 'Allow/Izinkan'.</li>
+                 </ol>`
+        });
+      }
+    };
+
+    app.stopLiveScanner = () => {
+      if (appState.html5QrCode && appState.html5QrCode.isScanning) {
+        appState.html5QrCode.stop().then(() => {
+          document.getElementById('reader-container').classList.add('d-none');
+          document.getElementById('btnStartScan').classList.remove('d-none');
+          document.getElementById('btnStopScan').classList.add('d-none');
+        }).catch(err => console.error(err));
+      } else {
+        document.getElementById('reader-container').classList.add('d-none');
+        document.getElementById('btnStartScan').classList.remove('d-none');
+        document.getElementById('btnStopScan').classList.add('d-none');
+      }
+    };
+
+    app.submitManualScan = async () => { 
+      const val = document.getElementById('manualBarcode').value; 
+      if (val) { await processScan(val); document.getElementById('manualBarcode').value = ''; } 
+    };
+
+    async function processScan(barcode) {
+      if (!appState.gps.lat) return UI.alert('GPS Required', 'Sinyal GPS tidak ditemukan.');
+      UI.showLoader();
+      try {
+        const payload = { barcode: barcode, lat: appState.gps.lat, lng: appState.gps.lng, deviceInfo: navigator.userAgent };
+        const res = await apiCall('scan', payload, 'POST');
+        
+        if (res.ok) Swal.fire({ title: 'BERHASIL', text: `Scan diterima. Jarak: ${res.data.distance} meter`, icon: 'success' });
+      } catch(e) { 
+        Swal.fire({ title: 'DITOLAK', text: e.message, icon: 'error' });
+      }
+      UI.hideLoader();
+    }
+
+    // --- 6. DATA TABLES (CRUD) ---
+    async function loadDataTable(tableName) {
+      appState.currentTableType = tableName;
+      document.getElementById('dataTitle').innerText = 'Data ' + tableName;
+      const btnAdd = document.getElementById('btnAddNew');
+      
+      // Tombol tambah berdasarkan permisi
+      if ((tableName === 'Users' && app.hasPerm('users.write')) || 
+          (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write'))) {
+        btnAdd.classList.remove('d-none');
+      } else {
+        btnAdd.classList.add('d-none');
+      }
+
+      const tbody = document.getElementById('dataTableBody'); 
+      const thead = document.getElementById('dataTableHead');
+      tbody.innerHTML = '<tr><td colspan="15" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>';
+      
+      try {
+        // Endpoint REST Node.js diasumsikan sbg: GET /api/users, GET /api/checkpoints, GET /api/patrollogs dll.
+        const res = await apiCall(tableName.toLowerCase(), null, 'GET');
+        
+        appState.currentTableData = res.data;
+        if (res.data.length === 0) { 
+          thead.innerHTML = ''; 
+          tbody.innerHTML = '<tr><td class="text-center text-muted py-4">Tidak ada data ditemukan.</td></tr>'; 
+          return; 
+        }
+
+        const headers = Object.keys(res.data[0]);
+        let headHTML = '<tr>';
+        headers.forEach(h => {
+           // Hindari menampilkan ID panjang atau PasswordHash di tabel
+           if(!h.toLowerCase().includes('hash') && !h.toLowerCase().includes('id')) headHTML += `<th>${h.toUpperCase()}</th>`;
+        });
+        if (tableName === 'Users' || tableName === 'Checkpoints') headHTML += '<th>AKSI</th>';
+        headHTML += '</tr>';
+        thead.innerHTML = headHTML;
+
+        let bodyHTML = '';
+        res.data.forEach((row, index) => {
+          bodyHTML += '<tr>';
+          headers.forEach(h => {
+            if(!h.toLowerCase().includes('hash') && !h.toLowerCase().includes('id')) {
+               let val = row[h] !== null ? row[h].toString() : '-'; 
+               if(val.length > 40) val = val.substring(0,40)+'...';
+               // Format boolean
+               if(val === 'true') val = '<span class="badge bg-success">Aktif</span>';
+               if(val === 'false') val = '<span class="badge bg-danger">Inaktif</span>';
+               bodyHTML += `<td>${val}</td>`;
+            }
+          });
+          
+          // Action Buttons
+          if (tableName === 'Users' && app.hasPerm('users.write')) {
+            bodyHTML += `<td><button class="btn btn-sm btn-outline-primary" onclick="app.editUser(${index})"><i class="bi bi-pencil"></i> Edit</button></td>`;
+          } else if (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write')) {
+            bodyHTML += `<td style="white-space:nowrap;">
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editCheckpoint(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-dark" onclick="app.printQR('${row.barcodevalue || row.BarcodeValue}', '${row.name || row.Name}')" title="Print QR"><i class="bi bi-printer"></i> Cetak</button>
+            </td>`;
+          }
+          bodyHTML += '</tr>';
+        });
+        tbody.innerHTML = bodyHTML;
+      } catch (e) { tbody.innerHTML = `<tr><td colspan="15" class="text-danger py-4 text-center">Gagal memuat data: ${e.message}</td></tr>`; }
+    }
+
+    const dataModal = new bootstrap.Modal(document.getElementById('dataModal'));
+    app.openDataModal = () => {
+      if (appState.currentTableType === 'Users') buildUserForm();
+      else if (appState.currentTableType === 'Checkpoints') buildCheckpointForm();
+    };
+
+    // --- FORM USERS ---
+    app.editUser = (index) => buildUserForm(appState.currentTableData[index]);
+    function buildUserForm(data = null) {
+      document.getElementById('dataModalTitle').innerText = data ? 'Edit User' : 'Tambah User';
+      const isEdit = !!data;
+      
+      // Node.js postgres return keys in lowercase usually, handle both
+      const uid = data ? (data.userid || data.UserId) : '';
+      const name = data ? (data.name || data.Name) : '';
+      const uname = data ? (data.username || data.Username) : '';
+      const role = data ? (data.role || data.Role) : '';
+      const isActive = data ? (data.isactive || data.IsActive) : true;
+
+      document.getElementById('dataModalBody').innerHTML = `
+        <form id="userForm">
+          <input type="hidden" id="f_userId" value="${uid}">
+          <div class="mb-2"><label>Nama Lengkap</label><input type="text" id="f_name" class="form-control" value="${name}" required></div>
+          <div class="mb-2"><label>Username Login</label><input type="text" id="f_username" class="form-control" value="${uname}" ${isEdit ? 'readonly' : 'required'}></div>
+          <div class="mb-2"><label>${isEdit ? 'Password Baru (Kosongkan jika tidak diubah)' : 'Password'}</label><input type="password" id="f_pass" class="form-control" ${!isEdit ? 'required' : ''}></div>
+          <div class="mb-2"><label>Peran (Role)</label><select id="f_role" class="form-select">
+            <option value="Guard" ${role==='Guard'?'selected':''}>Guard</option>
+            <option value="Supervisor" ${role==='Supervisor'?'selected':''}>Supervisor</option>
+            <option value="Admin" ${role==='Admin'?'selected':''}>Admin</option>
+          </select></div>
+          <div class="mb-2"><label>Status</label><select id="f_active" class="form-select">
+            <option value="true" ${isActive.toString()==='true'?'selected':''}>Aktif</option>
+            <option value="false" ${isActive.toString()==='false'?'selected':''}>Non-Aktif</option>
+          </select></div>
+        </form>
+      `;
+      document.getElementById('dataModalSaveBtn').onclick = async () => {
+        const id = document.getElementById('f_userId').value;
+        const p = { 
+          UserId: id, 
+          Name: document.getElementById('f_name').value, 
+          Username: document.getElementById('f_username').value, 
+          Password: document.getElementById('f_pass').value, 
+          Role: document.getElementById('f_role').value, 
+          IsActive: document.getElementById('f_active').value === 'true'
+        };
+        UI.showLoader();
+        try { 
+          const method = id ? 'PUT' : 'POST';
+          const res = await apiCall('users', p, method); 
+          if (res.ok) { UI.toast('User tersimpan'); dataModal.hide(); loadDataTable('Users'); } 
+        } catch(e) { UI.alert('Gagal', e.message); }
+        UI.hideLoader();
+      };
+      dataModal.show();
+    }
+
+    // --- FORM CHECKPOINTS ---
+    app.editCheckpoint = (index) => buildCheckpointForm(appState.currentTableData[index]);
+    function buildCheckpointForm(data = null) {
+      document.getElementById('dataModalTitle').innerText = data ? 'Edit Checkpoint' : 'Tambah Checkpoint';
+      
+      const cid = data ? (data.checkpointid || data.CheckpointId) : '';
+      const name = data ? (data.name || data.Name) : '';
+      const barcode = data ? (data.barcodevalue || data.BarcodeValue) : 'QR-' + Math.floor(Math.random()*100000);
+      const lat = data ? (data.latitude || data.Latitude) : '';
+      const lng = data ? (data.longitude || data.Longitude) : '';
+      const rad = data ? (data.radiusmeters || data.RadiusMeters) : '50';
+      const isActive = data ? (data.active || data.Active) : true;
+
+      document.getElementById('dataModalBody').innerHTML = `
+        <form id="cpForm">
+          <input type="hidden" id="f_cpId" value="${cid}">
+          <div class="mb-2"><label>Nama Lokasi Patroli</label><input type="text" id="f_cpName" class="form-control" value="${name}" required></div>
+          <div class="mb-3">
+            <label>Data QR Code</label>
+            <div class="input-group">
+              <input type="text" id="f_cpBarcode" class="form-control" value="${barcode}" required>
+              <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('f_cpBarcode').value = 'QR-' + Math.floor(Math.random()*100000)"><i class="bi bi-arrow-clockwise"></i> Gen</button>
+            </div>
+          </div>
+          <div class="card bg-light mb-3 border-0">
+            <div class="card-body py-2 px-3">
+              <label class="fw-bold mb-2"><i class="bi bi-geo-alt"></i> Koordinat GPS</label>
+              <div class="row">
+                <div class="col-6 mb-2"><label class="small">Latitude</label><input type="number" step="any" id="f_cpLat" class="form-control form-control-sm" value="${lat}" required></div>
+                <div class="col-6 mb-2"><label class="small">Longitude</label><input type="number" step="any" id="f_cpLng" class="form-control form-control-sm" value="${lng}" required></div>
+              </div>
+              <button type="button" class="btn btn-sm btn-primary w-100 mt-1" onclick="app.getGpsForForm()"><i class="bi bi-crosshair"></i> Ambil Lokasi Saya Sekarang</button>
+            </div>
+          </div>
+          <div class="mb-2"><label>Radius Toleransi Scan (Meter)</label><input type="number" id="f_cpRadius" class="form-control" value="${rad}" required></div>
+          <div class="mb-2"><label>Status</label><select id="f_cpActive" class="form-select">
+            <option value="true" ${isActive.toString()==='true'?'selected':''}>Aktif</option>
+            <option value="false" ${isActive.toString()==='false'?'selected':''}>Inaktif</option>
+          </select></div>
+        </form>
+      `;
+      document.getElementById('dataModalSaveBtn').onclick = async () => {
+        const id = document.getElementById('f_cpId').value;
+        const p = { 
+          CheckpointId: id, 
+          Name: document.getElementById('f_cpName').value, 
+          BarcodeValue: document.getElementById('f_cpBarcode').value, 
+          Latitude: document.getElementById('f_cpLat').value, 
+          Longitude: document.getElementById('f_cpLng').value, 
+          RadiusMeters: document.getElementById('f_cpRadius').value, 
+          Active: document.getElementById('f_cpActive').value === 'true'
+        };
+        if(!p.Name || !p.Latitude || !p.Longitude) return UI.toast('Harap lengkapi nama dan koordinat', 'warning');
+        UI.showLoader();
+        try { 
+          const method = id ? 'PUT' : 'POST';
+          const res = await apiCall('checkpoints', p, method); 
+          if (res.ok) { UI.toast('Checkpoint tersimpan'); dataModal.hide(); loadDataTable('Checkpoints'); } 
+        } catch(e) { UI.alert('Gagal', e.message); }
+        UI.hideLoader();
+      };
+      dataModal.show();
+    }
+
+    app.getGpsForForm = () => {
+      if (navigator.geolocation) {
+        UI.toast('Mencari satelit GPS...', 'info');
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            document.getElementById('f_cpLat').value = pos.coords.latitude;
+            document.getElementById('f_cpLng').value = pos.coords.longitude;
+            UI.toast(`Akurasi didapat: ${pos.coords.accuracy.toFixed(1)} meter`, 'success');
+          },
+          err => UI.alert('GPS Error', 'Mohon izinkan akses lokasi di browser Anda.')
+        );
+      }
+    };
+
+    // --- PRINT QR CODE ---
+    app.printQR = (barcode, name) => {
+      const printArea = document.getElementById('printArea');
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&data=${encodeURIComponent(barcode)}`;
+      
+      printArea.innerHTML = `
+        <div class="print-box">
+          <div class="print-title">${name}</div>
+          <img src="${qrUrl}" alt="QR Code" style="width:300px; height:300px;">
+          <div class="print-subtitle">${barcode}</div>
+          <div class="print-helper">Scan menggunakan Aplikasi Patroli</div>
+        </div>
+      `;
+      
+      const img = printArea.querySelector('img');
+      img.onload = () => { window.print(); };
+    };
+  </script>
+</body>
+</html>

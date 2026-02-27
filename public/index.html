@@ -109,6 +109,26 @@
         <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 pt-4 pb-5">
           
           <div id="content-dashboard" class="content-section d-none">
+            <div class="card p-4 mt-4">
+  <h5 class="fw-bold">Download Laporan Bulanan (PDF)</h5>
+  <div class="row g-2">
+    <div class="col-md-4">
+      <select id="reportMonth" class="form-select">
+        <option value="1">Januari</option>
+        <option value="2">Februari</option>
+        <option value="2" selected>Februari</option> 
+      </select>
+    </div>
+    <div class="col-md-4">
+      <input type="number" id="reportYear" class="form-control" value="2026">
+    </div>
+    <div class="col-md-4">
+      <button class="btn btn-danger w-100" onclick="app.downloadPDF()">
+        <i class="bi bi-file-earmark-pdf"></i> Download PDF
+      </button>
+    </div>
+  </div>
+</div>
             <h2 class="fw-bold mb-4">Dashboard</h2>
             <div class="row">
               <div class="col-md-4 mb-3">
@@ -683,6 +703,37 @@
       const img = printArea.querySelector('img');
       img.onload = () => { window.print(); };
     };
+
+    app.downloadPDF = () => {
+  const m = document.getElementById('reportMonth').value;
+  const y = document.getElementById('reportYear').value;
+  const url = `/api/reports/pdf?month=${m}&year=${y}`;
+  
+  UI.showLoader();
+  
+  // Gunakan fetch dengan header token
+  fetch(url, {
+    headers: { 'Authorization': 'Bearer ' + appState.token }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("Gagal membuat PDF");
+    return res.blob();
+  })
+  .then(blob => {
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `Laporan-Patroli-${m}-${y}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    UI.hideLoader();
+  })
+  .catch(err => {
+    UI.hideLoader();
+    UI.alert('Error', err.message);
+  });
+};
   </script>
 </body>
 </html>

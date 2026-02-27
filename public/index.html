@@ -886,16 +886,13 @@ app.downloadMatrixReport = async () => {
 
         const content = [
             { text: `LAPORAN MATRIX PATROLI (CHECKLIST)`, style: 'mainHeader' },
-            { text: `Periode: ${month}/${year} | Inisial 3 Huruf Petugas`, style: 'subHeader' }
+            { text: `Periode: ${month}/${year} | Inisial Petugas`, style: 'subHeader' }
         ];
 
         const lokasiList = Object.keys(groupedData).sort();
         
-        lokasiList.forEach((lokasi, index) => {
-            content.push({ 
-                text: `TITIK LOKASI: ${lokasi.toUpperCase()}`, 
-                style: 'lokasiTitle'
-            });
+        lokasiList.forEach((lokasi) => {
+            content.push({ text: `LOKASI: ${lokasi.toUpperCase()}`, style: 'lokasiTitle' });
 
             const tableBody = [];
             const headerRow = [{ text: 'JAM', style: 'tableHeader' }];
@@ -916,39 +913,41 @@ app.downloadMatrixReport = async () => {
             content.push({
                 table: {
                     headerRows: 1,
-                    // PERHITUNGAN KETAT: 
-                    // Kolom Jam = 40pt
-                    // Kolom Tanggal = 31 x 21pt = 651pt
-                    // Total = 691pt (Sangat aman untuk A4 Landscape yang lebarnya 842pt)
-                    widths: [40, ...Array(31).fill(21)], 
+                    // Jam (35pt) + 31 kolom x 22pt = 717pt. 
+                    // Total lebar 717pt sangat aman di kertas A4 Landscape (842pt).
+                    widths: [35, ...Array(31).fill(22)], 
                     body: tableBody
                 },
                 layout: {
-                    hLineWidth: (i, node) => 0.5,
-                    vLineWidth: (i, node) => 0.5,
-                    hLineColor: (i, node) => '#aaaaaa',
-                    vLineColor: (i, node) => '#aaaaaa'
-                },
-                margin: [0, 0, 0, 15] 
+                    paddingLeft: () => 0,
+                    paddingRight: () => 0,
+                    paddingTop: () => 2,
+                    paddingBottom: () => 2,
+                    hLineWidth: () => 0.5,
+                    vLineWidth: () => 0.5,
+                    hLineColor: () => '#444444',
+                    vLineColor: () => '#444444'
+                }
             });
+            content.push({ text: '', margin: [0, 0, 0, 15] });
         });
 
         const docDefinition = {
             pageOrientation: 'landscape',
             pageSize: 'A4',
-            pageMargins: [15, 20, 15, 20], // Margin diperkecil agar ruang lebih luas
+            pageMargins: [20, 30, 20, 30], // Margin kiri-kanan cukup 20pt
             content: content,
             styles: {
-                mainHeader: { fontSize: 14, bold: true, alignment: 'center', margin: [0, 0, 0, 2] },
-                subHeader: { fontSize: 9, alignment: 'center', margin: [0, 0, 0, 10] },
-                lokasiTitle: { fontSize: 9, bold: true, color: '#0d6efd', margin: [0, 5, 0, 2] },
+                mainHeader: { fontSize: 12, bold: true, alignment: 'center' },
+                subHeader: { fontSize: 8, alignment: 'center', margin: [0, 0, 0, 10] },
+                lokasiTitle: { fontSize: 9, bold: true, color: '#000', margin: [0, 5, 0, 2] },
                 tableHeader: { fontSize: 7, bold: true, fillColor: '#eeeeee', alignment: 'center' },
-                jamCell: { fontSize: 7, bold: true, alignment: 'center', fillColor: '#fafafa' },
+                jamCell: { fontSize: 7, bold: true, alignment: 'center' },
                 dataCell: { fontSize: 6, alignment: 'center' }
             }
         };
         
-        pdfMake.createPdf(docDefinition).download(`Matrix-Patroli-${month}-${year}.pdf`);
+        pdfMake.createPdf(docDefinition).download(`Laporan_Matrix_${month}_${year}.pdf`);
 
     } catch (err) {
         UI.alert('Error', err.message);
@@ -961,6 +960,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

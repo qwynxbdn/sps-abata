@@ -62,41 +62,6 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// API ROUTES: MANAJEMEN CHECKPOINT (VIEW & SAVE)
-// ==========================================
-
-app.get("/api/checkpoints", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Latitude as \"Latitude\", Longitude as \"Longitude\", RadiusMeters as \"RadiusMeters\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-// Endpoint untuk TAMBAH Checkpoint Baru
-app.post("/api/checkpoints", authenticateToken, async (req, res) => {
-  const { Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
-  try {
-    await pool.query(
-      "INSERT INTO Checkpoints (Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active) VALUES ($1, $2, $3, $4, $5, $6)",
-      [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active]
-    );
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-// Endpoint untuk EDIT Checkpoint
-app.put("/api/checkpoints", authenticateToken, async (req, res) => {
-  const { CheckpointId, Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
-  try {
-    await pool.query(
-      "UPDATE Checkpoints SET Name=$1, BarcodeValue=$2, Latitude=$3, Longitude=$4, RadiusMeters=$5, Active=$6 WHERE CheckpointId=$7",
-      [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active, CheckpointId]
-    );
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-// ==========================================
 // API ROUTES: MANAJEMEN USERS (VIEW & SAVE)
 // ==========================================
 
@@ -107,13 +72,37 @@ app.get("/api/users", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+// Endpoint untuk TAMBAH User Baru
 app.post("/api/users", authenticateToken, async (req, res) => {
   const { Name, Username, Password, Role, IsActive } = req.body;
   try {
+    // Enkripsi password sebelum disimpan ke database
     const hash = await bcrypt.hash(Password, 10);
     await pool.query(
       "INSERT INTO Users (Name, Username, PasswordHash, Role, IsActive) VALUES ($1, $2, $3, $4, $5)",
       [Name, Username, hash, Role, IsActive]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// ==========================================
+// API ROUTES: MANAJEMEN CHECKPOINT (VIEW & SAVE)
+// ==========================================
+
+app.get("/api/checkpoints", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post("/api/checkpoints", authenticateToken, async (req, res) => {
+  const { Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  try {
+    await pool.query(
+      "INSERT INTO Checkpoints (Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active) VALUES ($1, $2, $3, $4, $5, $6)",
+      [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }

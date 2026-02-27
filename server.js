@@ -1,5 +1,5 @@
 // ==========================================
-// File: server.js (Final Vercel Compatibility & Full API)
+// File: server.js (Full Version: View & CRUD)
 // ==========================================
 require("dotenv").config();
 const express = require("express");
@@ -50,22 +50,54 @@ app.post("/api/login", async (req, res) => {
     const permissions = roleRes.rows[0].permissionsjson;
 
     const token = jwt.sign({ userId: user.userid, username: user.username, role: user.role, permissions }, process.env.JWT_SECRET, { expiresIn: "12h" });
-    
-    // Gunakan Alias Nama Besar (Name, Role) agar Frontend tidak Undefined
     res.json({ ok: true, data: { token, user: { UserId: user.userid, Name: user.name, Role: user.role, permissions } } });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.get("/api/me", authenticateToken, async (req, res) => {
   try {
-    // Mapping manual ke Huruf Besar agar dashboard tidak Undefined
     const userRes = await pool.query("SELECT UserId as \"UserId\", Name as \"Name\", Username as \"Username\", Role as \"Role\" FROM Users WHERE UserId = $1", [req.user.userId]);
     res.json({ ok: true, data: { ...userRes.rows[0], permissions: req.user.permissions } });
   } catch (err) { res.status(500).json({ ok: false }); }
 });
 
 // ==========================================
-// API ROUTES: DATA MANAGEMENT (CRUD)
+// API ROUTES: MANAJEMEN CHECKPOINT (VIEW & SAVE)
+// ==========================================
+
+app.get("/api/checkpoints", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Latitude as \"Latitude\", Longitude as \"Longitude\", RadiusMeters as \"RadiusMeters\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// Endpoint untuk TAMBAH Checkpoint Baru
+app.post("/api/checkpoints", authenticateToken, async (req, res) => {
+  const { Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  try {
+    await pool.query(
+      "INSERT INTO Checkpoints (Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active) VALUES ($1, $2, $3, $4, $5, $6)",
+      [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// Endpoint untuk EDIT Checkpoint
+app.put("/api/checkpoints", authenticateToken, async (req, res) => {
+  const { CheckpointId, Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  try {
+    await pool.query(
+      "UPDATE Checkpoints SET Name=$1, BarcodeValue=$2, Latitude=$3, Longitude=$4, RadiusMeters=$5, Active=$6 WHERE CheckpointId=$7",
+      [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active, CheckpointId]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// ==========================================
+// API ROUTES: MANAJEMEN USERS (VIEW & SAVE)
 // ==========================================
 
 app.get("/api/users", authenticateToken, async (req, res) => {
@@ -75,44 +107,25 @@ app.get("/api/users", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-app.get("/api/checkpoints", authenticateToken, async (req, res) => {
+app.post("/api/users", authenticateToken, async (req, res) => {
+  const { Name, Username, Password, Role, IsActive } = req.body;
   try {
-    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
-    res.json({ ok: true, data: result.rows });
+    const hash = await bcrypt.hash(Password, 10);
+    await pool.query(
+      "INSERT INTO Users (Name, Username, PasswordHash, Role, IsActive) VALUES ($1, $2, $3, $4, $5)",
+      [Name, Username, hash, Role, IsActive]
+    );
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
+
+// ==========================================
+// API ROUTES: LOGS & REPORTS
+// ==========================================
 
 app.get("/api/patrollogs", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query("SELECT LogId as \"LogId\", Timestamp as \"Timestamp\", Username as \"Username\", BarcodeValue as \"BarcodeValue\", Result as \"Result\" FROM PatrolLogs ORDER BY Timestamp DESC LIMIT 200");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.get("/api/schedules", authenticateToken, async (req, res) => {
-  res.json({ ok: true, data: [] });
-});
-
-// ==========================================
-// API ROUTES: REPORTS (LIST & MATRIX)
-// ==========================================
-
-app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
-  const { month, year } = req.query;
-  try {
-    const query = `
-      WITH RECURSIVE hours AS (
-        SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
-      ),
-      days AS (
-        SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date
-      )
-      SELECT TO_CHAR(d.date, 'DD/MM/YYYY') as tanggal, h.start_hour || ':00 - ' || (h.start_hour + 2) || ':00' AS window, c.Name AS lokasi, COALESCE(l.Username, '-') AS petugas, CASE WHEN l.LogId IS NULL THEN 'ABSENT' ELSE 'OK' END AS status
-      FROM days d CROSS JOIN hours h CROSS JOIN Checkpoints c
-      LEFT JOIN PatrolLogs l ON l.CheckpointId = c.CheckpointId AND l.Timestamp::date = d.date AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < (h.start_hour + 2)
-      ORDER BY d.date ASC, h.start_hour ASC, c.Name ASC;
-    `;
-    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
     res.json({ ok: true, data: result.rows });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -127,19 +140,9 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
       days AS (
         SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date
       )
-      SELECT 
-        EXTRACT(DAY FROM d.date) as tgl,
-        TO_CHAR(make_timestamp(2000, 1, 1, h.start_hour, 0, 0), 'HH24:00') AS jam_slot,
-        c.Name AS lokasi,
-        UPPER(LEFT(COALESCE(l.Username, ''), 3)) AS inisial
-      FROM days d
-      CROSS JOIN hours h
-      CROSS JOIN Checkpoints c
-      LEFT JOIN PatrolLogs l ON 
-        l.CheckpointId = c.CheckpointId AND 
-        l.Timestamp::date = d.date AND
-        EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND 
-        EXTRACT(HOUR FROM l.Timestamp) < (h.start_hour + 2)
+      SELECT EXTRACT(DAY FROM d.date) as tgl, TO_CHAR(make_timestamp(2000, 1, 1, h.start_hour, 0, 0), 'HH24:00') AS jam_slot, c.Name AS lokasi, UPPER(LEFT(COALESCE(l.Username, ''), 3)) AS inisial
+      FROM days d CROSS JOIN hours h CROSS JOIN Checkpoints c
+      LEFT JOIN PatrolLogs l ON l.CheckpointId = c.CheckpointId AND l.Timestamp::date = d.date AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < (h.start_hour + 2)
       ORDER BY jam_slot ASC, lokasi ASC, tgl ASC;
     `;
     const result = await pool.query(query, [parseInt(month), parseInt(year)]);
@@ -148,24 +151,10 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// STATIC FILES & VERCEL ROUTING FIX
+// STATIC FILES & ROUTING FIX
 // ==========================================
-
 app.use(express.static(path.join(__dirname, "public")));
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// Regex Catch-all (Menghindari PathError parameter name)
-app.get(/^\/(?!api).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
-
-// Local Development
-if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
-}

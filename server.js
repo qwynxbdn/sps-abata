@@ -86,23 +86,31 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
 // ==========================================
 
 // Sajikan folder public secara statis
+// ==========================================
+// STATIC FILES & VERCEL ROUTING (ULTIMATE FIX)
+// ==========================================
+
+// 1. Sajikan folder public secara statis
 app.use(express.static(path.join(__dirname, "public")));
 
-// Rute khusus untuk root
+// 2. Rute eksplisit untuk halaman utama
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// FIX PathError: Menggunakan sintaks parameter untuk wildcard
-app.get("/:path*", (req, res) => {
+// 3. Rute fallback jika user mengakses path manual (misal /dashboard)
+// Kita menggunakan regex sederhana yang diterima semua versi Express
+app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Export untuk Vercel
+// ==========================================
+// EKSEKUSI
+// ==========================================
 module.exports = app;
 
-// Local Development
 if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`🚀 Server on http://localhost:${PORT}`));
 }
+

@@ -3,6 +3,7 @@
 // ==========================================
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -11,7 +12,13 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Melayani file public/index.html
+// Menggunakan path absolut agar Vercel tidak kebingungan
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Rute khusus untuk memanggil index.html saat web pertama kali dibuka
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // --- KONEKSI DATABASE POSTGRESQL ---
 // Menggunakan URL koneksi dari Supabase/Neon

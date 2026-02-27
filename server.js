@@ -1,5 +1,5 @@
 // ==========================================
-// File: server.js (Final Vercel Compatibility)
+// File: server.js (Final Vercel Compatibility & Full API)
 // ==========================================
 require("dotenv").config();
 const express = require("express");
@@ -33,7 +33,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ==========================================
-// API ROUTES
+// API ROUTES: AUTH & PROFILE
 // ==========================================
 
 app.post("/api/login", async (req, res) => {
@@ -50,23 +50,58 @@ app.post("/api/login", async (req, res) => {
     const permissions = roleRes.rows[0].permissionsjson;
 
     const token = jwt.sign({ userId: user.userid, username: user.username, role: user.role, permissions }, process.env.JWT_SECRET, { expiresIn: "12h" });
+    
+    // Gunakan Alias Nama Besar (Name, Role) agar Frontend tidak Undefined
     res.json({ ok: true, data: { token, user: { UserId: user.userid, Name: user.name, Role: user.role, permissions } } });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.get("/api/me", authenticateToken, async (req, res) => {
   try {
-    const userRes = await pool.query("SELECT UserId, Name, Username, Role FROM Users WHERE UserId = $1", [req.user.userId]);
+    // Mapping manual ke Huruf Besar agar dashboard tidak Undefined
+    const userRes = await pool.query("SELECT UserId as \"UserId\", Name as \"Name\", Username as \"Username\", Role as \"Role\" FROM Users WHERE UserId = $1", [req.user.userId]);
     res.json({ ok: true, data: { ...userRes.rows[0], permissions: req.user.permissions } });
   } catch (err) { res.status(500).json({ ok: false }); }
 });
+
+// ==========================================
+// API ROUTES: DATA MANAGEMENT (CRUD)
+// ==========================================
+
+app.get("/api/users", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT UserId as \"UserId\", Name as \"Name\", Username as \"Username\", Role as \"Role\", IsActive as \"IsActive\" FROM Users ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/checkpoints", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/patrollogs", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT LogId as \"LogId\", Timestamp as \"Timestamp\", Username as \"Username\", BarcodeValue as \"BarcodeValue\", Result as \"Result\" FROM PatrolLogs ORDER BY Timestamp DESC LIMIT 200");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/schedules", authenticateToken, async (req, res) => {
+  res.json({ ok: true, data: [] });
+});
+
+// ==========================================
+// API ROUTES: REPORTS (LIST & MATRIX)
+// ==========================================
 
 app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
   const { month, year } = req.query;
   try {
     const query = `
       WITH RECURSIVE hours AS (
-        -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
         SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
       ),
       days AS (
@@ -82,54 +117,15 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// ==========================================
-// API CRUD: USERS & CHECKPOINTS (WAJIB ADA)
-// ==========================================
-
-app.get("/api/users", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT UserId, Name, Username, Role, IsActive FROM Users ORDER BY Name ASC");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.get("/api/checkpoints", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM Checkpoints ORDER BY Name ASC");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.get("/api/patrollogs", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT LogId, Timestamp, Username, BarcodeValue, DistanceMeters, Result, Notes FROM PatrolLogs ORDER BY Timestamp DESC LIMIT 200");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.get("/api/schedules", authenticateToken, async (req, res) => {
-  // Placeholder karena tabel schedules Anda belum dibuat detailnya
-  res.json({ ok: true, data: [] });
-});
-
-// ==========================================
-// REPORT MATRIX ENDPOINT
-// ==========================================
-
 app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   const { month, year } = req.query;
   try {
     const query = `
       WITH RECURSIVE hours AS (
-        -- Memulai dari jam 07:00 sesuai permintaan gambar Anda
         SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
       ),
       days AS (
-        SELECT generate_series(
-          date_trunc('month', make_date($2, $1, 1)),
-          (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'),
-          interval '1 day'
-        )::date AS date
+        SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date
       )
       SELECT 
         EXTRACT(DAY FROM d.date) as tgl,
@@ -161,7 +157,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Gunakan regex ini untuk menghindari PathError "Missing parameter name"
+// Regex Catch-all (Menghindari PathError parameter name)
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });

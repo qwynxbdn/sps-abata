@@ -196,27 +196,35 @@
         <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 pt-4 pb-5">
 
           <div id="content-dashboard" class="content-section d-none">
-            <div class="card p-4 mt-4">
-              <h5 class="fw-bold">Download Laporan Bulanan (PDF)</h5>
+            <div class="card p-4 mt-4 shadow-sm">
+              <h5 class="fw-bold mb-3"><i class="bi bi-file-earmark-bar-graph"></i> Ekspor Laporan Patroli</h5>
               <div class="row g-2">
-                <div class="col-md-4">
+                <div class="col-md-3">
+                  <label class="small text-muted">Bulan</label>
                   <select id="reportMonth" class="form-select">
                     <option value="1">Januari</option>
-                    <option value="2">Februari</option>
                     <option value="2" selected>Februari</option>
+                    <option value="3">Maret</option>
                   </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                  <label class="small text-muted">Tahun</label>
                   <input type="number" id="reportYear" class="form-control" value="2026">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3 d-flex align-items-end">
                   <button class="btn btn-danger w-100" onclick="app.downloadPDF()">
-                    <i class="bi bi-file-earmark-pdf"></i> Download PDF
+                    <i class="bi bi-file-earmark-pdf"></i> Rekap List
+                  </button>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                  <button class="btn btn-success w-100" onclick="app.downloadMatrixReport()">
+                    <i class="bi bi-grid-3x3"></i> Rekap Matrix
                   </button>
                 </div>
               </div>
             </div>
-            <h2 class="fw-bold mb-4">Dashboard</h2>
+
+            <h2 class="fw-bold mb-4 mt-4">Dashboard</h2>
             <div class="row">
               <div class="col-md-4 mb-3">
                 <div class="card text-white bg-primary shadow-sm h-100">
@@ -798,65 +806,184 @@
     };
 
     app.downloadPDF = async () => {
-  const m = document.getElementById('reportMonth').value;
-  const y = document.getElementById('reportYear').value;
-  UI.showLoader();
-  
-  try {
-    // 1. Ambil data JSON mentah dari Backend
-    const res = await apiCall(`reports/monthly?month=${m}&year=${y}`, null, 'GET');
-    
-    // 2. Siapkan Kerangka Tabel PDF
-    const tableBody = [
-      [
-        { text: 'Tanggal', style: 'tableHeader' },
-        { text: 'Waktu', style: 'tableHeader' },
-        { text: 'Titik Lokasi', style: 'tableHeader' },
-        { text: 'Petugas', style: 'tableHeader' },
-        { text: 'Status', style: 'tableHeader' }
-      ]
-    ];
+      const m = document.getElementById('reportMonth').value;
+      const y = document.getElementById('reportYear').value;
+      UI.showLoader();
 
-    // 3. Masukkan data ke dalam tabel
-    res.data.forEach(row => {
-      tableBody.push([
-        row.tanggal,
-        row.window,
-        row.lokasi,
-        row.petugas,
-        { text: row.status, color: row.status === 'ABSENT' ? 'red' : 'green', bold: row.status === 'ABSENT' }
-      ]);
-    });
+      try {
+        // 1. Ambil data JSON mentah dari Backend
+        const res = await apiCall(`reports/monthly?month=${m}&year=${y}`, null, 'GET');
 
-    // 4. Desain Dokumen PDF
-    const docDefinition = {
-      content: [
-        { text: 'LAPORAN REKAP PATROLI BULANAN', style: 'header' },
-        { text: `Periode: Bulan ${m} Tahun ${y}`, style: 'subheader' },
-        {
-          table: {
-            headerRows: 1,
-            widths: ['auto', 'auto', '*', 'auto', 'auto'],
-            body: tableBody
+        // 2. Siapkan Kerangka Tabel PDF
+        const tableBody = [
+          [
+            { text: 'Tanggal', style: 'tableHeader' },
+            { text: 'Waktu', style: 'tableHeader' },
+            { text: 'Titik Lokasi', style: 'tableHeader' },
+            { text: 'Petugas', style: 'tableHeader' },
+            { text: 'Status', style: 'tableHeader' }
+          ]
+        ];
+
+        // 3. Masukkan data ke dalam tabel
+        res.data.forEach(row => {
+          tableBody.push([
+            row.tanggal,
+            row.window,
+            row.lokasi,
+            row.petugas,
+            { text: row.status, color: row.status === 'ABSENT' ? 'red' : 'green', bold: row.status === 'ABSENT' }
+          ]);
+        });
+
+        // 4. Desain Dokumen PDF
+        const docDefinition = {
+          content: [
+            { text: 'LAPORAN REKAP PATROLI BULANAN', style: 'header' },
+            { text: `Periode: Bulan ${m} Tahun ${y}`, style: 'subheader' },
+            {
+              table: {
+                headerRows: 1,
+                widths: ['auto', 'auto', '*', 'auto', 'auto'],
+                body: tableBody
+              }
+            }
+          ],
+          styles: {
+            header: { fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 10] },
+            subheader: { fontSize: 12, alignment: 'center', margin: [0, 0, 0, 20] },
+            tableHeader: { bold: true, fontSize: 11, color: 'black', fillColor: '#eeeeee' }
           }
-        }
-      ],
-      styles: {
-        header: { fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 10] },
-        subheader: { fontSize: 12, alignment: 'center', margin: [0, 0, 0, 20] },
-        tableHeader: { bold: true, fontSize: 11, color: 'black', fillColor: '#eeeeee' }
+        };
+
+        // 5. Render dan Download PDF langsung dari Browser!
+        pdfMake.createPdf(docDefinition).download(`Laporan-Patroli-${m}-${y}.pdf`);
+
+      } catch (err) {
+        UI.alert('Gagal Mengambil Data', err.message);
       }
+
+      UI.hideLoader();
     };
 
-    // 5. Render dan Download PDF langsung dari Browser!
-    pdfMake.createPdf(docDefinition).download(`Laporan-Patroli-${m}-${y}.pdf`);
+    // Tambahkan ini di dalam bagian script Anda (bisa diletakkan setelah app.downloadPDF)
+
+app.downloadMatrixReport = async () => {
+    const month = document.getElementById('reportMonth').value;
+    const year = document.getElementById('reportYear').value;
+    UI.showLoader();
     
-  } catch (err) {
-    UI.alert('Gagal Mengambil Data', err.message);
-  }
-  
-  UI.hideLoader();
+    try {
+        const res = await apiCall(`reports/matrix?month=${month}&year=${year}`, null, 'GET');
+        
+        if(!res.ok) throw new Error("Gagal mengambil data matrix");
+
+        // Kelompokkan data berdasarkan Jam Slot dan Lokasi
+        const matrix = {};
+        res.data.forEach(row => {
+            const key = `${row.jam_slot} | ${row.lokasi}`;
+            if(!matrix[key]) matrix[key] = {};
+            matrix[key][row.tgl] = row.inisial || "";
+        });
+
+        const body = [];
+        // Buat Header Tanggal (1-31)
+        const header = [{ text: 'Jam | Lokasi', style: 'tableHeader' }];
+        for(let i=1; i<=31; i++) header.push({ text: i.toString(), style: 'tableHeader' });
+        body.push(header);
+
+        // Isi Baris Matrix
+        Object.keys(matrix).sort().forEach(key => {
+            const row = [{ text: key, fontSize: 7 }];
+            for(let i=1; i<=31; i++) {
+                row.push({ text: matrix[key][i] || "", fontSize: 6, alignment: 'center' });
+            }
+            body.push(row);
+        });
+
+        const docDefinition = {
+            pageOrientation: 'landscape',
+            pageSize: 'A4',
+            pageMargins: [20, 20, 20, 20],
+            content: [
+                { text: `LAPORAN PATROLI MATRIX (CHECKLIST)`, style: 'header' },
+                { text: `Periode: ${month}/${year} | Inisial Petugas`, style: 'subheader' },
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: [100, ...Array(31).fill(15)],
+                        body: body
+                    }
+                }
+            ],
+            styles: { 
+                header: { fontSize: 14, bold: true, alignment: 'center', margin: [0,0,0,5] },
+                subheader: { fontSize: 10, alignment: 'center', margin: [0,0,0,15] },
+                tableHeader: { fontSize: 7, bold: true, fillColor: '#eeeeee', alignment: 'center' }
+            }
+        };
+        
+        pdfMake.createPdf(docDefinition).download(`Matrix-Patroli-${month}-${year}.pdf`);
+    } catch (err) {
+        UI.alert('Error', err.message);
+    }
+    UI.hideLoader();
 };
+
+    async function downloadMatrixReport() {
+      const month = document.getElementById('filterMonth').value;
+      const year = document.getElementById('filterYear').value;
+
+      const resp = await fetch(`/api/reports/matrix?month=${month}&year=${year}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const result = await resp.json();
+
+      if (!result.ok) return alert("Gagal mengambil data matrix");
+
+      // Kelompokkan data berdasarkan Jam Slot dan Lokasi
+      const matrix = {};
+      result.data.forEach(row => {
+        const key = `${row.jam_slot} | ${row.lokasi}`;
+        if (!matrix[key]) matrix[key] = {};
+        matrix[key][row.tgl] = row.inisial || "";
+      });
+
+      const body = [];
+      // Buat Header Tanggal (1-31)
+      const header = [{ text: 'Jam | Lokasi', style: 'tableHeader' }];
+      for (let i = 1; i <= 31; i++) header.push({ text: i.toString(), style: 'tableHeader' });
+      body.push(header);
+
+      // Isi Baris Matrix
+      Object.keys(matrix).sort().forEach(key => {
+        const row = [{ text: key, fontSize: 8 }];
+        for (let i = 1; i <= 31; i++) {
+          row.push({ text: matrix[key][i] || "", fontSize: 7, alignment: 'center' });
+        }
+        body.push(row);
+      });
+
+      const docDefinition = {
+        pageOrientation: 'landscape',
+        content: [
+          { text: `LAPORAN PATROLI MATRIX - PERIODE ${month}/${year}`, style: 'header' },
+          {
+            table: {
+              headerRows: 1,
+              widths: [80, ...Array(31).fill(12)],
+              body: body
+            }
+          }
+        ],
+        styles: {
+          header: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] },
+          tableHeader: { fontSize: 8, bold: true, fillColor: '#eeeeee' }
+        }
+      };
+
+      pdfMake.createPdf(docDefinition).download(`Matrix-Patroli-${month}-${year}.pdf`);
+    }
   </script>
 </body>
 

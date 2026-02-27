@@ -869,90 +869,97 @@
     // Tambahkan ini di dalam bagian script Anda (bisa diletakkan setelah app.downloadPDF)
 
 app.downloadMatrixReport = async () => {
-    const month = document.getElementById('reportMonth').value;
-    const year = document.getElementById('reportYear').value;
-    UI.showLoader();
-    
-    try {
-        const res = await apiCall(`reports/matrix?month=${month}&year=${year}`, null, 'GET');
-        if(!res.ok) throw new Error("Gagal mengambil data matrix");
+  const month = document.getElementById('reportMonth').value;
+  const year = document.getElementById('reportYear').value;
+  UI.showLoader();
 
-        const groupedData = {};
-        res.data.forEach(row => {
-            if (!groupedData[row.lokasi]) groupedData[row.lokasi] = {};
-            if (!groupedData[row.lokasi][row.jam_slot]) groupedData[row.lokasi][row.jam_slot] = {};
-            groupedData[row.lokasi][row.jam_slot][row.tgl] = row.inisial || "";
-        });
+  try {
+    const res = await apiCall(`reports/matrix?month=${month}&year=${year}`, null, 'GET');
+    if (!res.ok) throw new Error("Gagal mengambil data matrix");
 
-        const content = [
-            { text: `LAPORAN MATRIX PATROLI (CHECKLIST)`, style: 'mainHeader' },
-            { text: `Periode: ${month}/${year} | Inisial Petugas`, style: 'subHeader' }
-        ];
+    const groupedData = {};
+    res.data.forEach(row => {
+      if (!groupedData[row.lokasi]) groupedData[row.lokasi] = {};
+      if (!groupedData[row.lokasi][row.jam_slot]) groupedData[row.lokasi][row.jam_slot] = {};
+      groupedData[row.lokasi][row.jam_slot][row.tgl] = row.inisial || "";
+    });
 
-        const lokasiList = Object.keys(groupedData).sort();
-        
-        lokasiList.forEach((lokasi) => {
-            content.push({ text: `LOKASI: ${lokasi.toUpperCase()}`, style: 'lokasiTitle' });
+    // === A4 landscape size in pdfMake points ===
+    // A4 portrait: 595.28 x 841.89 pt, landscape: 841.89 x 595.28 pt
+    const pageWidth = 841.89;
+    const pageMargins = [10, 18, 10, 18]; // kecilin margin biar lebih lega (tanpa kepotong)
+    const printableWidth = pageWidth - pageMargins[0] - pageMargins[2];
 
-            const tableBody = [];
-            const headerRow = [{ text: 'JAM', style: 'tableHeader' }];
-            for (let i = 1; i <= 31; i++) {
-                headerRow.push({ text: i.toString(), style: 'tableHeader' });
-            }
-            tableBody.push(headerRow);
+    const jamWidth = 34; // kecilin sedikit
+    const dayCols = 31;
+    const dayWidth = Math.floor((printableWidth - jamWidth) / dayCols); // auto fit
+    const widths = [jamWidth, ...Array(dayCols).fill(dayWidth)];
 
-            const jamSlots = Object.keys(groupedData[lokasi]).sort();
-            jamSlots.forEach(jam => {
-                const row = [{ text: jam, style: 'jamCell' }];
-                for (let i = 1; i <= 31; i++) {
-                    row.push({ text: groupedData[lokasi][jam][i] || "", style: 'dataCell' });
-                }
-                tableBody.push(row);
-            });
+    const content = [
+      { text: `LAPORAN MATRIX PATROLI (CHECKLIST)`, style: 'mainHeader' },
+      { text: `Periode: ${month}/${year} | Inisial Petugas`, style: 'subHeader' }
+    ];
 
-            content.push({
-                table: {
-                    headerRows: 1,
-                    // Jam (35pt) + 31 kolom x 22pt = 717pt. 
-                    // Total lebar 717pt sangat aman di kertas A4 Landscape (842pt).
-                    widths: [35, ...Array(31).fill(22)], 
-                    body: tableBody
-                },
-                layout: {
-                    paddingLeft: () => 0,
-                    paddingRight: () => 0,
-                    paddingTop: () => 2,
-                    paddingBottom: () => 2,
-                    hLineWidth: () => 0.5,
-                    vLineWidth: () => 0.5,
-                    hLineColor: () => '#444444',
-                    vLineColor: () => '#444444'
-                }
-            });
-            content.push({ text: '', margin: [0, 0, 0, 15] });
-        });
+    const lokasiList = Object.keys(groupedData).sort();
 
-        const docDefinition = {
-            pageOrientation: 'landscape',
-            pageSize: 'A4',
-            pageMargins: [20, 30, 20, 30], // Margin kiri-kanan cukup 20pt
-            content: content,
-            styles: {
-                mainHeader: { fontSize: 12, bold: true, alignment: 'center' },
-                subHeader: { fontSize: 8, alignment: 'center', margin: [0, 0, 0, 10] },
-                lokasiTitle: { fontSize: 9, bold: true, color: '#000', margin: [0, 5, 0, 2] },
-                tableHeader: { fontSize: 7, bold: true, fillColor: '#eeeeee', alignment: 'center' },
-                jamCell: { fontSize: 7, bold: true, alignment: 'center' },
-                dataCell: { fontSize: 6, alignment: 'center' }
-            }
-        };
-        
-        pdfMake.createPdf(docDefinition).download(`Laporan_Matrix_${month}_${year}.pdf`);
+    lokasiList.forEach((lokasi) => {
+      content.push({ text: `LOKASI: ${lokasi.toUpperCase()}`, style: 'lokasiTitle' });
 
-    } catch (err) {
-        UI.alert('Error', err.message);
-    }
-    UI.hideLoader();
+      const tableBody = [];
+      const headerRow = [{ text: 'JAM', style: 'tableHeader' }];
+      for (let i = 1; i <= 31; i++) headerRow.push({ text: String(i), style: 'tableHeader' });
+      tableBody.push(headerRow);
+
+      const jamSlots = Object.keys(groupedData[lokasi]).sort();
+      jamSlots.forEach(jam => {
+        const row = [{ text: jam, style: 'jamCell' }];
+        for (let i = 1; i <= 31; i++) {
+          row.push({ text: groupedData[lokasi][jam][i] || "", style: 'dataCell' });
+        }
+        tableBody.push(row);
+      });
+
+      content.push({
+        table: { headerRows: 1, widths, body: tableBody },
+        layout: {
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 1,
+          paddingBottom: () => 1,
+          hLineWidth: () => 0.4,
+          vLineWidth: () => 0.4,
+          hLineColor: () => '#444444',
+          vLineColor: () => '#444444'
+        }
+      });
+
+      // jarak antar lokasi diperkecil
+      content.push({ text: '', margin: [0, 0, 0, 6] });
+    });
+
+    const docDefinition = {
+      pageOrientation: 'landscape',
+      pageSize: 'A4',
+      pageMargins,
+      // kalau ada kata panjang, jangan sampai melebar keluar
+      defaultStyle: { fontSize: 6 },
+      content,
+      styles: {
+        mainHeader: { fontSize: 10, bold: true, alignment: 'center' },
+        subHeader: { fontSize: 7, alignment: 'center', margin: [0, 0, 0, 6] },
+        lokasiTitle: { fontSize: 8, bold: true, margin: [0, 3, 0, 1] },
+        tableHeader: { fontSize: 6, bold: true, fillColor: '#eeeeee', alignment: 'center' },
+        jamCell: { fontSize: 6, bold: true, alignment: 'center' },
+        dataCell: { fontSize: 5, alignment: 'center' }
+      }
+    };
+
+    pdfMake.createPdf(docDefinition).download(`Laporan_Matrix_${month}_${year}.pdf`);
+  } catch (err) {
+    UI.alert('Error', err.message);
+  }
+
+  UI.hideLoader();
 };
 
     
@@ -960,6 +967,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

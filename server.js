@@ -231,5 +231,15 @@ app.get('/api/schedules', authenticateToken, requirePermission('schedules.read')
 // ==========================================
 // JALANKAN SERVER
 // ==========================================
+// ==========================================
+// JALANKAN SERVER & EXPORT UNTUK VERCEL
+// ==========================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server Backend Enterprise berjalan di http://localhost:${PORT}`));
+
+// Jalankan server untuk mode lokal
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`🚀 Server berjalan di http://localhost:${PORT}`));
+}
+
+// BARIS INI SANGAT WAJIB UNTUK VERCEL:
+module.exports = app;

@@ -1,5 +1,5 @@
 // ==========================================
-// File: server.js (Full Version: View & CRUD)
+// File: server.js (FINAL COMPLETED VERSION)
 // ==========================================
 require("dotenv").config();
 const express = require("express");
@@ -62,7 +62,7 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// API ROUTES: MANAJEMEN USERS (VIEW & SAVE)
+// API ROUTES: USERS MANAGEMENT (CRUD)
 // ==========================================
 
 app.get("/api/users", authenticateToken, async (req, res) => {
@@ -72,11 +72,9 @@ app.get("/api/users", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// Endpoint untuk TAMBAH User Baru
 app.post("/api/users", authenticateToken, async (req, res) => {
   const { Name, Username, Password, Role, IsActive } = req.body;
   try {
-    // Enkripsi password sebelum disimpan ke database
     const hash = await bcrypt.hash(Password, 10);
     await pool.query(
       "INSERT INTO Users (Name, Username, PasswordHash, Role, IsActive) VALUES ($1, $2, $3, $4, $5)",
@@ -86,13 +84,33 @@ app.post("/api/users", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+// ENDPOINT EDIT USER (PUT)
+app.put("/api/users", authenticateToken, async (req, res) => {
+  const { UserId, Name, Password, Role, IsActive } = req.body;
+  try {
+    if (Password && Password.trim() !== "") {
+      const hash = await bcrypt.hash(Password, 10);
+      await pool.query(
+        "UPDATE Users SET Name=$1, PasswordHash=$2, Role=$3, IsActive=$4 WHERE UserId=$5",
+        [Name, hash, Role, IsActive, UserId]
+      );
+    } else {
+      await pool.query(
+        "UPDATE Users SET Name=$1, Role=$2, IsActive=$3 WHERE UserId=$4",
+        [Name, Role, IsActive, UserId]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 // ==========================================
-// API ROUTES: MANAJEMEN CHECKPOINT (VIEW & SAVE)
+// API ROUTES: CHECKPOINTS MANAGEMENT (CRUD)
 // ==========================================
 
 app.get("/api/checkpoints", authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
+    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Latitude as \"Latitude\", Longitude as \"Longitude\", RadiusMeters as \"RadiusMeters\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
     res.json({ ok: true, data: result.rows });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -108,6 +126,17 @@ app.post("/api/checkpoints", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+app.put("/api/checkpoints", authenticateToken, async (req, res) => {
+  const { CheckpointId, Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  try {
+    await pool.query(
+      "UPDATE Checkpoints SET Name=$1, BarcodeValue=$2, Latitude=$3, Longitude=$4, RadiusMeters=$5, Active=$6 WHERE CheckpointId=$7",
+      [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active, CheckpointId]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 // ==========================================
 // API ROUTES: LOGS & REPORTS
 // ==========================================
@@ -115,6 +144,26 @@ app.post("/api/checkpoints", authenticateToken, async (req, res) => {
 app.get("/api/patrollogs", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query("SELECT LogId as \"LogId\", Timestamp as \"Timestamp\", Username as \"Username\", BarcodeValue as \"BarcodeValue\", Result as \"Result\" FROM PatrolLogs ORDER BY Timestamp DESC LIMIT 200");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
+  const { month, year } = req.query;
+  try {
+    const query = `
+      WITH RECURSIVE hours AS (
+        SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23
+      ),
+      days AS (
+        SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date
+      )
+      SELECT TO_CHAR(d.date, 'DD/MM/YYYY') as tanggal, h.start_hour || ':00 - ' || (h.start_hour + 2) || ':00' AS window, c.Name AS lokasi, COALESCE(l.Username, '-') AS petugas, CASE WHEN l.LogId IS NULL THEN 'ABSENT' ELSE 'OK' END AS status
+      FROM days d CROSS JOIN hours h CROSS JOIN Checkpoints c
+      LEFT JOIN PatrolLogs l ON l.CheckpointId = c.CheckpointId AND l.Timestamp::date = d.date AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < (h.start_hour + 2)
+      ORDER BY d.date ASC, h.start_hour ASC, c.Name ASC;
+    `;
+    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
     res.json({ ok: true, data: result.rows });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });

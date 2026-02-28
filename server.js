@@ -303,14 +303,15 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
 // ==========================================
 app.get("/api/patrollogs", authenticateToken, async (req, res) => {
   try {
+    // UBAH URUTAN SELECT DI SINI:
     let query = `
       SELECT 
-        l.LogId as "logid",
         l.Timestamp as "timestamp",
         c.Name as "lokasi",
-        l.Username as "username",
         l.BarcodeValue as "barcodevalue",
-        l.Result as "result"
+        l.Username as "username",
+        l.Result as "result",
+        l.LogId as "logid"
       FROM PatrolLogs l
       LEFT JOIN Checkpoints c ON l.CheckpointId = c.CheckpointId
     `;
@@ -378,6 +379,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

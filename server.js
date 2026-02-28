@@ -66,28 +66,30 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 });
 
 // --- GET ALL SCHEDULES ---
+// --- AMBIL DATA SCHEDULES ---
 app.get("/api/schedules", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
         s.ScheduleId as "ScheduleId", 
-        s.UserId as "UserId",
-        s.CheckpointId as "CheckpointId",
         u.Name as "Petugas", 
         c.Name as "Lokasi", 
         s.ShiftName as "Shift", 
-        TO_CHAR(s.ScheduleDate, 'YYYY-MM-DD') as "TanggalRaw",
-        TO_CHAR(s.ScheduleDate, 'DD/MM/YYYY') as "Tanggal"
+        TO_CHAR(s.ScheduleDate, 'DD/MM/YYYY') as "Tanggal",
+        s.StartTime as "Mulai",
+        s.EndTime as "Selesai"
       FROM Schedules s
       JOIN Users u ON s.UserId = u.UserId
       JOIN Checkpoints c ON s.CheckpointId = c.CheckpointId
       ORDER BY s.ScheduleDate DESC
     `);
     res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  } catch (err) { 
+    res.status(500).json({ ok: false, error: err.message }); 
+  }
 });
 
-// --- CREATE SCHEDULE ---
+// --- TAMBAH DATA SCHEDULES ---
 app.post("/api/schedules", authenticateToken, async (req, res) => {
   const { UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime } = req.body;
   try {
@@ -96,7 +98,9 @@ app.post("/api/schedules", authenticateToken, async (req, res) => {
       [UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime]
     );
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  } catch (err) { 
+    res.status(500).json({ ok: false, error: err.message }); 
+  }
 });
 
 // --- UPDATE SCHEDULE ---
@@ -278,6 +282,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

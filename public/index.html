@@ -389,7 +389,17 @@
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      
+      // Ambil elemen tombol dan simpan teks aslinya
+      const btnSubmit = e.target.querySelector('button[type="submit"]');
+      const originalText = btnSubmit.innerHTML;
+      
+      // Ubah tombol jadi "Loading" dan matikan agar tidak di-klik 2x
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+      
       UI.showLoader();
+      
       try {
         const payload = {
           username: document.getElementById('loginUsername').value,
@@ -404,7 +414,13 @@
           UI.toast('Login Berhasil');
           initApp();
         }
-      } catch (e) { UI.alert('Login Gagal', e.message); }
+      } catch (e) { 
+        UI.alert('Login Gagal', e.message); 
+      }
+      
+      // Kembalikan tombol ke kondisi semula setelah selesai
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = originalText;
       UI.hideLoader();
     });
 
@@ -1062,6 +1078,7 @@ async function buildScheduleForm(data = null) {
 </body>
 
 </html>
+
 
 
 

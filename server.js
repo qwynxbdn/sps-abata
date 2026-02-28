@@ -65,6 +65,94 @@ app.get("/api/me", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false }); }
 });
 
+// --- GET ALL SCHEDULES ---
+app.get("/api/schedules", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        s.ScheduleId as "ScheduleId", 
+        s.UserId as "UserId",
+        s.CheckpointId as "CheckpointId",
+        u.Name as "Petugas", 
+        c.Name as "Lokasi", 
+        s.ShiftName as "Shift", 
+        TO_CHAR(s.ScheduleDate, 'YYYY-MM-DD') as "TanggalRaw",
+        TO_CHAR(s.ScheduleDate, 'DD/MM/YYYY') as "Tanggal"
+      FROM Schedules s
+      JOIN Users u ON s.UserId = u.UserId
+      JOIN Checkpoints c ON s.CheckpointId = c.CheckpointId
+      ORDER BY s.ScheduleDate DESC
+    `);
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// --- CREATE SCHEDULE ---
+app.post("/api/schedules", authenticateToken, async (req, res) => {
+  const { UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime } = req.body;
+  try {
+    await pool.query(
+      "INSERT INTO Schedules (UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime) VALUES ($1, $2, $3, $4, $5, $6)",
+      [UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// --- UPDATE SCHEDULE ---
+app.put("/api/schedules", authenticateToken, async (req, res) => {
+  const { ScheduleId, UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime } = req.body;
+  try {
+    await pool.query(
+      "UPDATE Schedules SET UserId=$1, CheckpointId=$2, ShiftName=$3, ScheduleDate=$4, StartTime=$5, EndTime=$6 WHERE ScheduleId=$7",
+      [UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime, ScheduleId]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
+  const { month, year } = req.query;
+  try {
+    const query = `
+      WITH RECURSIVE hours AS (
+          SELECT 7 AS start_hour, 1 AS step
+          UNION ALL 
+          SELECT (start_hour + 2) % 24, step + 1 FROM hours WHERE step < 12
+      ),
+      days AS (
+          SELECT generate_series(
+            date_trunc('month', make_date($2, $1, 1)), 
+            (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), 
+            interval '1 day'
+          )::date AS date
+      )
+      SELECT 
+        EXTRACT(DAY FROM d.date) as tgl, 
+        LPAD(h.start_hour::text, 2, '0') || ':00' AS jam_slot, 
+        c.Name AS lokasi, 
+        UPPER(LEFT(COALESCE(l.Username, ''), 3)) AS inisial
+      FROM days d 
+      CROSS JOIN hours h 
+      CROSS JOIN Checkpoints c
+      LEFT JOIN PatrolLogs l ON 
+        l.CheckpointId = c.CheckpointId AND 
+        l.Timestamp::date = d.date AND
+        (
+          -- Logika jam agar scan jam 08:30 masuk ke slot 07:00
+          (h.start_hour <= 22 AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < h.start_hour + 2)
+          OR
+          (h.start_hour = 23 AND (EXTRACT(HOUR FROM l.Timestamp) >= 23 OR EXTRACT(HOUR FROM l.Timestamp) < 1))
+          OR
+          (h.start_hour < 7 AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < h.start_hour + 2)
+        )
+      ORDER BY h.step ASC, lokasi ASC, tgl ASC;
+    `;
+    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 // --- SCAN (VERSI TANPA KOLOM GPS) ---
 app.post("/api/scan", authenticateToken, async (req, res) => {
   const { barcode, lat, lng } = req.body; // Data dari HP petugas
@@ -167,7 +255,12 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   const { month, year } = req.query;
   try {
     const query = `
-      WITH RECURSIVE hours AS (SELECT 7 AS start_hour UNION ALL SELECT start_hour + 2 FROM hours WHERE start_hour < 23),
+      // Ganti bagian query hours di /api/reports/matrix menjadi:
+WITH RECURSIVE hours AS (
+    SELECT 7 AS start_hour, 1 AS step
+    UNION ALL 
+    SELECT (start_hour + 2) % 24, step + 1 FROM hours WHERE step < 12
+),
       days AS (SELECT generate_series(date_trunc('month', make_date($2, $1, 1)), (date_trunc('month', make_date($2, $1, 1)) + interval '1 month' - interval '1 day'), interval '1 day')::date AS date)
       SELECT EXTRACT(DAY FROM d.date) as tgl, TO_CHAR(make_timestamp(2000, 1, 1, h.start_hour, 0, 0), 'HH24:00') AS jam_slot, c.Name AS lokasi, UPPER(LEFT(COALESCE(l.Username, ''), 3)) AS inisial
       FROM days d CROSS JOIN hours h CROSS JOIN Checkpoints c
@@ -185,4 +278,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
+
+
 

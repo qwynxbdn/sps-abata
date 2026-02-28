@@ -590,9 +590,12 @@
       document.getElementById('dataTitle').innerText = 'Data ' + tableName;
       const btnAdd = document.getElementById('btnAddNew');
 
-      // Tombol tambah berdasarkan permisi
-      if ((tableName === 'Users' && app.hasPerm('users.write')) ||
-        (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write'))) {
+      // Tombol tambah berdasarkan permisi (Schedules ditambahkan)
+      if (
+        (tableName === 'Users' && app.hasPerm('users.write')) ||
+        (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write')) ||
+        (tableName === 'Schedules' && app.hasPerm('all'))
+      ) {
         btnAdd.classList.remove('d-none');
       } else {
         btnAdd.classList.add('d-none');
@@ -603,7 +606,6 @@
       tbody.innerHTML = '<tr><td colspan="15" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>';
 
       try {
-        // Endpoint REST Node.js diasumsikan sbg: GET /api/users, GET /api/checkpoints, GET /api/patrollogs dll.
         const res = await apiCall(tableName.toLowerCase(), null, 'GET');
 
         appState.currentTableData = res.data;
@@ -616,10 +618,17 @@
         const headers = Object.keys(res.data[0]);
         let headHTML = '<tr>';
         headers.forEach(h => {
-          // Hindari menampilkan ID panjang atau PasswordHash di tabel
-          if (!h.toLowerCase().includes('hash') && !h.toLowerCase().includes('id')) headHTML += `<th>${h.toUpperCase()}</th>`;
+          // Sembunyikan ID mentah dan Hash, tapi tampilkan info penting lainnya
+          const hiddenFields = ['hash', 'userid', 'checkpointid', 'scheduleid', 'tanggalraw'];
+          if (!hiddenFields.some(f => h.toLowerCase().includes(f))) {
+            headHTML += `<th>${h.toUpperCase()}</th>`;
+          }
         });
-        if (tableName === 'Users' || tableName === 'Checkpoints') headHTML += '<th>AKSI</th>';
+        
+        // Tambahkan kolom AKSI jika tabel bisa dimodifikasi
+        if (['Users', 'Checkpoints', 'Schedules'].includes(tableName)) {
+          headHTML += '<th>AKSI</th>';
+        }
         headHTML += '</tr>';
         thead.innerHTML = headHTML;
 
@@ -627,17 +636,20 @@
         res.data.forEach((row, index) => {
           bodyHTML += '<tr>';
           headers.forEach(h => {
-            if (!h.toLowerCase().includes('hash') && !h.toLowerCase().includes('id')) {
+            const hiddenFields = ['hash', 'userid', 'checkpointid', 'scheduleid', 'tanggalraw'];
+            if (!hiddenFields.some(f => h.toLowerCase().includes(f))) {
               let val = row[h] !== null ? row[h].toString() : '-';
               if (val.length > 40) val = val.substring(0, 40) + '...';
-              // Format boolean
-              if (val === 'true') val = '<span class="badge bg-success">Aktif</span>';
-              if (val === 'false') val = '<span class="badge bg-danger">Inaktif</span>';
+              
+              // Format Badge untuk status boolean
+              if (val === 'true' || val === 'Aktif') val = '<span class="badge bg-success">Aktif</span>';
+              if (val === 'false' || val === 'Inaktif') val = '<span class="badge bg-danger">Inaktif</span>';
+              
               bodyHTML += `<td>${val}</td>`;
             }
           });
 
-          // Action Buttons
+          // Tombol Aksi Berdasarkan Tipe Tabel
           if (tableName === 'Users' && app.hasPerm('users.write')) {
             bodyHTML += `<td><button class="btn btn-sm btn-outline-primary" onclick="app.editUser(${index})"><i class="bi bi-pencil"></i> Edit</button></td>`;
           } else if (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write')) {
@@ -645,11 +657,16 @@
               <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editCheckpoint(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
               <button class="btn btn-sm btn-outline-dark" onclick="app.printQR('${row.barcodevalue || row.BarcodeValue}', '${row.name || row.Name}')" title="Print QR"><i class="bi bi-printer"></i> Cetak</button>
             </td>`;
+          } else if (tableName === 'Schedules' && app.hasPerm('all')) {
+            bodyHTML += `<td><button class="btn btn-sm btn-outline-primary" onclick="app.editSchedule(${index})"><i class="bi bi-pencil"></i> Edit</button></td>`;
           }
+          
           bodyHTML += '</tr>';
         });
         tbody.innerHTML = bodyHTML;
-      } catch (e) { tbody.innerHTML = `<tr><td colspan="15" class="text-danger py-4 text-center">Gagal memuat data: ${e.message}</td></tr>`; }
+      } catch (e) { 
+        tbody.innerHTML = `<tr><td colspan="15" class="text-danger py-4 text-center">Gagal memuat data: ${e.message}</td></tr>`; 
+      }
     }
 
     const dataModal = new bootstrap.Modal(document.getElementById('dataModal'));
@@ -1005,6 +1022,7 @@ async function buildScheduleForm(data = null) {
 </body>
 
 </html>
+
 
 
 

@@ -151,6 +151,9 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
 // ==========================================
 // REPORTS & MATRIX (12 SLOTS / 24H)
 // ==========================================
+// ==========================================
+// REPORTS & MATRIX (12 SLOTS / 24H) - FIXED TIMEZONE
+// ==========================================
 app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   const { month, year } = req.query;
   try {
@@ -177,13 +180,14 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
       CROSS JOIN Checkpoints c
       LEFT JOIN PatrolLogs l ON 
         l.CheckpointId = c.CheckpointId AND 
-        l.Timestamp::date = d.date AND
+        -- KONVERSI UTC KE WIB (+7 Jam) SEBELUM DICOCOKKAN
+        (l.Timestamp + INTERVAL '7 hours')::date = d.date AND
         (
-          (h.start_hour <= 22 AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < h.start_hour + 2)
+          (h.start_hour <= 22 AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) >= h.start_hour AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) < h.start_hour + 2)
           OR
-          (h.start_hour = 23 AND (EXTRACT(HOUR FROM l.Timestamp) >= 23 OR EXTRACT(HOUR FROM l.Timestamp) < 1))
+          (h.start_hour = 23 AND (EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) >= 23 OR EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) < 1))
           OR
-          (h.start_hour < 7 AND EXTRACT(HOUR FROM l.Timestamp) >= h.start_hour AND EXTRACT(HOUR FROM l.Timestamp) < h.start_hour + 2)
+          (h.start_hour < 7 AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) >= h.start_hour AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) < h.start_hour + 2)
         )
       ORDER BY h.step ASC, lokasi ASC, tgl ASC;
     `;
@@ -284,11 +288,38 @@ app.post("/api/system/cleanup", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+// ==========================================
+// REKAP LIST (MONTHLY REPORT)
+// ==========================================
+app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
+  const { month, year } = req.query;
+  try {
+    const query = `
+      SELECT 
+        TO_CHAR(l.Timestamp + INTERVAL '7 hours', 'DD/MM/YYYY') as tanggal,
+        TO_CHAR(l.Timestamp + INTERVAL '7 hours', 'HH24:MI:SS') || ' WIB' as window,
+        c.Name as lokasi,
+        UPPER(l.Username) as petugas,
+        l.Result as status
+      FROM PatrolLogs l
+      JOIN Checkpoints c ON l.CheckpointId = c.CheckpointId
+      WHERE EXTRACT(MONTH FROM l.Timestamp + INTERVAL '7 hours') = $1
+        AND EXTRACT(YEAR FROM l.Timestamp + INTERVAL '7 hours') = $2
+      ORDER BY l.Timestamp ASC
+    `;
+    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { 
+    res.status(500).json({ ok: false, error: err.message }); 
+  }
+});
+
 // --- STATIC SERVING ---
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 

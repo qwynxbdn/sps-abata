@@ -247,10 +247,48 @@ app.put("/api/checkpoints", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+// ==========================================
+// SYSTEM & STORAGE MAINTENANCE
+// ==========================================
+
+// Endpoint untuk cek ukuran database
+app.get("/api/system/status", authenticateToken, async (req, res) => {
+  try {
+    // Hanya Admin yang boleh mengakses
+    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
+
+    // Fungsi PostgreSQL bawaan untuk mengecek ukuran DB
+    const dbSizeRes = await pool.query("SELECT pg_size_pretty(pg_database_size(current_database())) as size_text, pg_database_size(current_database()) as size_bytes");
+    const logsRes = await pool.query("SELECT COUNT(*) FROM PatrolLogs");
+
+    res.json({ 
+      ok: true, 
+      data: {
+        sizeText: dbSizeRes.rows[0].size_text,
+        sizeBytes: dbSizeRes.rows[0].size_bytes,
+        totalLogs: parseInt(logsRes.rows[0].count)
+      } 
+    });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// Endpoint untuk hapus data lebih dari 3 bulan
+app.post("/api/system/cleanup", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
+
+    // Hapus data PatrolLogs yang usianya lebih tua dari 3 bulan
+    const deleteRes = await pool.query("DELETE FROM PatrolLogs WHERE Timestamp < NOW() - INTERVAL '3 months'");
+    
+    res.json({ ok: true, deletedRows: deleteRes.rowCount });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 // --- STATIC SERVING ---
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 

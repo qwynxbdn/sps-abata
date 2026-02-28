@@ -358,6 +358,14 @@
               <button class="btn btn-primary d-none" id="btnAddNew" onclick="app.openDataModal()"><i
                   class="bi bi-plus-lg"></i> Tambah Baru</button>
             </div>
+            
+            <div id="filterLogsContainer" class="card shadow-sm mb-3 d-none border-0 bg-white">
+              <div class="card-body pb-2 pt-3">
+                 <div class="row g-2 align-items-end" id="filterLogsBody">
+                    </div>
+              </div>
+            </div>
+
             <div class="card shadow-sm">
               <div class="card-body table-responsive">
                 <table class="table table-hover align-middle" id="dataTable">
@@ -700,14 +708,17 @@
       document.getElementById('dataTitle').innerText = 'Data ' + tableName;
       const btnAdd = document.getElementById('btnAddNew');
 
-      // UBAH MENJADI (Hapus baris Schedules):
-      if (
-        (tableName === 'Users' && app.hasPerm('users.write')) ||
-        (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write'))
-      ) {
+      if ((tableName === 'Users' && app.hasPerm('users.write')) || (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write'))) {
         btnAdd.classList.remove('d-none');
       } else {
         btnAdd.classList.add('d-none');
+      }
+
+      // === TAMPILKAN FILTER JIKA MENU PATROL LOGS ===
+      if (tableName === 'PatrolLogs') {
+        await app.renderLogFilters(); // Pastikan filter ter-load
+      } else {
+        document.getElementById('filterLogsContainer').classList.add('d-none');
       }
 
       const tbody = document.getElementById('dataTableBody');
@@ -715,7 +726,20 @@
       tbody.innerHTML = '<tr><td colspan="15" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>';
 
       try {
-        const res = await apiCall(tableName.toLowerCase(), null, 'GET');
+        // === PASANG PARAMETER PENCARIAN KE URL API ===
+        let apiUrl = tableName.toLowerCase();
+        
+        if (tableName === 'PatrolLogs' && app.filtersRendered) {
+          const m = document.getElementById('fLogMonth').value;
+          const y = document.getElementById('fLogYear').value;
+          const loc = document.getElementById('fLogLoc').value;
+          const usr = document.getElementById('fLogUser') ? document.getElementById('fLogUser').value : '';
+          
+          // Gabungkan ke URL tujuan
+          apiUrl += `?month=${m}&year=${y}&location=${encodeURIComponent(loc)}&username=${encodeURIComponent(usr)}`;
+        }
+
+        const res = await apiCall(apiUrl, null, 'GET');
 
         appState.currentTableData = res.data;
         if (res.data.length === 0) {
@@ -1303,10 +1327,93 @@ app.downloadMatrixReport = async () => {
         UI.hideLoader();
       }
     };
+
+    // --- FITUR FILTER PATROL LOGS ---
+    app.filtersRendered = false;
+
+    app.renderLogFilters = async () => {
+      const container = document.getElementById('filterLogsContainer');
+      // Hanya tampilkan jika sedang membuka menu PatrolLogs
+      if (appState.currentTableType !== 'PatrolLogs') {
+        container.classList.add('d-none');
+        return;
+      }
+      container.classList.remove('d-none');
+
+      // Hindari me-render ulang agar pilihan user tidak ter-reset
+      if (app.filtersRendered) return; 
+
+      const now = new Date();
+      const curMonth = now.getMonth() + 1; // Default Bulan Berjalan
+      const curYear = now.getFullYear();   // Default Tahun Berjalan
+
+      // 1. Ambil data Checkpoints untuk dropdown Lokasi
+      let cpOptions = '<option value="">Semua Lokasi</option>';
+      try {
+        const cpRes = await apiCall('checkpoints', null, 'GET');
+        if (cpRes.ok) cpRes.data.forEach(c => cpOptions += `<option value="${c.Name}">${c.Name}</option>`);
+      } catch (e) {}
+
+      // 2. Ambil data User untuk dropdown (KHUSUS ADMIN)
+      let userHTML = '';
+      if (app.hasPerm('all')) {
+        let userOptions = '<option value="">Semua Petugas</option>';
+        try {
+          const uRes = await apiCall('users', null, 'GET');
+          if (uRes.ok) uRes.data.forEach(u => userOptions += `<option value="${u.Username}">${u.Name} (${u.Username})</option>`);
+        } catch (e) {}
+        
+        userHTML = `
+          <div class="col-md-3 mb-2">
+            <label class="small text-muted fw-bold">Petugas</label>
+            <select id="fLogUser" class="form-select form-select-sm" onchange="loadDataTable('PatrolLogs')">
+              ${userOptions}
+            </select>
+          </div>
+        `;
+      }
+
+      // 3. Suntikkan HTML ke dalam Layar
+      document.getElementById('filterLogsBody').innerHTML = `
+        <div class="col-md-3 mb-2">
+          <label class="small text-muted fw-bold">Bulan</label>
+          <select id="fLogMonth" class="form-select form-select-sm" onchange="loadDataTable('PatrolLogs')">
+            <option value="1" ${curMonth === 1 ? 'selected' : ''}>Januari</option>
+            <option value="2" ${curMonth === 2 ? 'selected' : ''}>Februari</option>
+            <option value="3" ${curMonth === 3 ? 'selected' : ''}>Maret</option>
+            <option value="4" ${curMonth === 4 ? 'selected' : ''}>April</option>
+            <option value="5" ${curMonth === 5 ? 'selected' : ''}>Mei</option>
+            <option value="6" ${curMonth === 6 ? 'selected' : ''}>Juni</option>
+            <option value="7" ${curMonth === 7 ? 'selected' : ''}>Juli</option>
+            <option value="8" ${curMonth === 8 ? 'selected' : ''}>Agustus</option>
+            <option value="9" ${curMonth === 9 ? 'selected' : ''}>September</option>
+            <option value="10" ${curMonth === 10 ? 'selected' : ''}>Oktober</option>
+            <option value="11" ${curMonth === 11 ? 'selected' : ''}>November</option>
+            <option value="12" ${curMonth === 12 ? 'selected' : ''}>Desember</option>
+          </select>
+        </div>
+        <div class="col-md-2 mb-2">
+          <label class="small text-muted fw-bold">Tahun</label>
+          <input type="number" id="fLogYear" class="form-control form-control-sm" value="${curYear}" onchange="loadDataTable('PatrolLogs')">
+        </div>
+        <div class="col-md-3 mb-2">
+          <label class="small text-muted fw-bold">Lokasi Area</label>
+          <select id="fLogLoc" class="form-select form-select-sm" onchange="loadDataTable('PatrolLogs')">
+            ${cpOptions}
+          </select>
+        </div>
+        ${userHTML}
+        <div class="col-md-1 mb-2 d-flex">
+           <button class="btn btn-sm btn-primary w-100" onclick="loadDataTable('PatrolLogs')" title="Refresh Data"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+      `;
+      app.filtersRendered = true;
+    };
   </script>
 </body>
 
 </html>
+
 
 
 

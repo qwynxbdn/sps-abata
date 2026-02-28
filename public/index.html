@@ -1027,10 +1027,16 @@ app.downloadMatrixReport = async () => {
     if (!res.ok) throw new Error("Gagal mengambil data matrix");
 
     const groupedData = {};
+    const jamSlotsSequence = []; // Menyimpan urutan jam asli
     res.data.forEach(row => {
       if (!groupedData[row.lokasi]) groupedData[row.lokasi] = {};
       if (!groupedData[row.lokasi][row.jam_slot]) groupedData[row.lokasi][row.jam_slot] = {};
       groupedData[row.lokasi][row.jam_slot][row.tgl] = row.inisial || "";
+      
+      // Masukkan ke array jika belum ada agar urutannya persis seperti backend
+      if (!jamSlotsSequence.includes(row.jam_slot)) {
+        jamSlotsSequence.push(row.jam_slot);
+      }
     });
 
     // === A4 landscape size in pdfMake points ===
@@ -1059,7 +1065,8 @@ app.downloadMatrixReport = async () => {
       for (let i = 1; i <= 31; i++) headerRow.push({ text: String(i), style: 'tableHeader' });
       tableBody.push(headerRow);
 
-      const jamSlots = Object.keys(groupedData[lokasi]).sort();
+      // Gunakan urutan asli, JANGAN di-sort secara alfabetis
+      const jamSlots = jamSlotsSequence; 
       jamSlots.forEach(jam => {
         const row = [{ text: jam, style: 'jamCell' }];
         for (let i = 1; i <= 31; i++) {
@@ -1219,6 +1226,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

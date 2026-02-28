@@ -1016,39 +1016,66 @@ app.editSchedule = (index) => buildScheduleForm(appState.currentTableData[index]
 async function buildScheduleForm(data = null) {
     document.getElementById('dataModalTitle').innerText = data ? 'Edit Jadwal' : 'Tambah Jadwal';
     
-    // Ambil data User & Checkpoint untuk dropdown
-    const usersRes = await apiCall('users');
-    const cpRes = await apiCall('checkpoints');
+    // 1. Tampilkan loading agar user tahu sistem merespon klik
+    UI.showLoader();
     
-    let userOptions = usersRes.data.map(u => `<option value="${u.UserId}" ${data && data.UserId === u.UserId ? 'selected' : ''}>${u.Name}</option>`).join('');
-    let cpOptions = cpRes.data.map(c => `<option value="${c.CheckpointId}" ${data && data.CheckpointId === c.CheckpointId ? 'selected' : ''}>${c.Name}</option>`).join('');
+    try {
+        // 2. Ambil data User & Checkpoint secara bersamaan (lebih cepat)
+        const [usersRes, cpRes] = await Promise.all([
+            apiCall('users'),
+            apiCall('checkpoints')
+        ]);
+        
+        let userOptions = usersRes.data.map(u => `<option value="${u.UserId}" ${data && data.UserId === u.UserId ? 'selected' : ''}>${u.Name}</option>`).join('');
+        let cpOptions = cpRes.data.map(c => `<option value="${c.CheckpointId}" ${data && data.CheckpointId === c.CheckpointId ? 'selected' : ''}>${c.Name}</option>`).join('');
 
-    document.getElementById('dataModalBody').innerHTML = `
-        <form id="scheduleForm">
-            <input type="hidden" id="f_schId" value="${data ? data.ScheduleId : ''}">
-            <div class="mb-2"><label>Petugas</label><select id="f_schUser" class="form-select">${userOptions}</select></div>
-            <div class="mb-2"><label>Lokasi</label><select id="f_schCp" class="form-select">${cpOptions}</select></div>
-            <div class="mb-2"><label>Shift</label><input type="text" id="f_schShift" class="form-control" value="${data ? data.Shift : ''}" placeholder="Pagi / Malam"></div>
-            <div class="mb-2"><label>Tanggal</label><input type="date" id="f_schDate" class="form-control" value="${data ? data.TanggalRaw : ''}"></div>
-        </form>
-    `;
-    
-    document.getElementById('dataModalSaveBtn').onclick = async () => {
-        const id = document.getElementById('f_schId').value;
-        const p = {
-            ScheduleId: id,
-            UserId: document.getElementById('f_schUser').value,
-            CheckpointId: document.getElementById('f_schCp').value,
-            ShiftName: document.getElementById('f_schShift').value,
-            ScheduleDate: document.getElementById('f_schDate').value
+        document.getElementById('dataModalBody').innerHTML = `
+            <form id="scheduleForm">
+                <input type="hidden" id="f_schId" value="${data ? data.ScheduleId : ''}">
+                <div class="mb-2"><label>Petugas</label><select id="f_schUser" class="form-select">${userOptions}</select></div>
+                <div class="mb-2"><label>Lokasi</label><select id="f_schCp" class="form-select">${cpOptions}</select></div>
+                <div class="mb-2"><label>Shift</label><input type="text" id="f_schShift" class="form-control" value="${data ? data.Shift : ''}" placeholder="Pagi / Malam"></div>
+                <div class="mb-2"><label>Tanggal</label><input type="date" id="f_schDate" class="form-control" value="${data ? data.TanggalRaw : ''}"></div>
+            </form>
+        `;
+        
+        document.getElementById('dataModalSaveBtn').onclick = async () => {
+            const id = document.getElementById('f_schId').value;
+            const p = {
+                ScheduleId: id,
+                UserId: document.getElementById('f_schUser').value,
+                CheckpointId: document.getElementById('f_schCp').value,
+                ShiftName: document.getElementById('f_schShift').value,
+                ScheduleDate: document.getElementById('f_schDate').value
+            };
+            
+            // Tampilkan loading saat proses simpan
+            UI.showLoader();
+            try {
+                const method = id ? 'PUT' : 'POST';
+                const res = await apiCall('schedules', p, method);
+                if (res.ok) { 
+                    UI.toast('Jadwal tersimpan'); 
+                    dataModal.hide(); 
+                    loadDataTable('Schedules'); 
+                }
+            } catch (err) {
+                UI.alert('Gagal Menyimpan', err.message);
+            }
+            UI.hideLoader();
         };
-        const method = id ? 'PUT' : 'POST';
-        const res = await apiCall('schedules', p, method);
-        if (res.ok) { UI.toast('Jadwal tersimpan'); dataModal.hide(); loadDataTable('Schedules'); }
-    };
-    dataModal.show();
+        
+        // 3. Matikan loading lalu tampilkan form popup
+        UI.hideLoader();
+        dataModal.show();
+        
+    } catch (error) {
+        UI.hideLoader();
+        UI.alert('Gagal Memuat Form', error.message);
+    }
 }
-    app.deleteSchedule = async (id) => {
+
+app.deleteSchedule = async (id) => {
   const confirm = await Swal.fire({
     title: 'Hapus Jadwal?',
     text: "Data jadwal yang dihapus tidak dapat dikembalikan!",
@@ -1078,6 +1105,7 @@ async function buildScheduleForm(data = null) {
 </body>
 
 </html>
+
 
 
 

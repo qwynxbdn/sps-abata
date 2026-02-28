@@ -300,6 +300,46 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
   }
 });
 
+
+// ==========================================
+// GET PATROL LOGS (ROLE-BASED & NAMA LOKASI)
+// ==========================================
+app.get("/api/patrollogs", authenticateToken, async (req, res) => {
+  try {
+    // Gunakan JOIN untuk mengambil nama lokasi dari tabel Checkpoints
+    let query = `
+      SELECT 
+        l.LogId as "logid",
+        l.Timestamp as "timestamp",
+        c.Name as "lokasi",
+        l.Username as "username",
+        l.BarcodeValue as "barcodevalue",
+        l.Result as "result"
+      FROM PatrolLogs l
+      LEFT JOIN Checkpoints c ON l.CheckpointId = c.CheckpointId
+    `;
+    
+    const params = [];
+
+    // FILTER ROLE: Jika user BUKAN Admin (tidak punya perm 'all')
+    // Maka paksa query hanya memunculkan data miliknya sendiri
+    if (!req.user.permissions.includes('all')) {
+      // Menggunakan req.user.username dari token JWT Anda
+      const uname = req.user.username || req.user.Username || req.user.name;
+      query += ` WHERE l.Username = $1 `;
+      params.push(uname);
+    }
+
+    // Urutkan dari yang paling baru dan batasi 200 data terakhir agar HP tidak lemot
+    query += ` ORDER BY l.Timestamp DESC LIMIT 200`;
+
+    const result = await pool.query(query, params);
+    res.json({ ok: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ==========================================
 // API DELETE (USERS, CHECKPOINTS, LOGS)
 // ==========================================
@@ -344,6 +384,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

@@ -957,7 +957,8 @@ app.openDataModal = () => {
         };
 
         // 5. Render dan Download PDF langsung dari Browser!
-        pdfMake.createPdf(docDefinition).download(`Laporan-Patroli-${m}-${y}.pdf`);
+        // 5. Buka PDF di Tab Baru
+        pdfMake.createPdf(docDefinition).open();
 
       } catch (err) {
         UI.alert('Gagal Mengambil Data', err.message);
@@ -1054,7 +1055,8 @@ app.downloadMatrixReport = async () => {
       }
     };
 
-    pdfMake.createPdf(docDefinition).download(`Laporan_Matrix_${month}_${year}.pdf`);
+    pdfMake.createPdf(docDefinition).open();
+    
   } catch (err) {
     UI.alert('Error', err.message);
   }
@@ -1213,6 +1215,7 @@ app.deleteSchedule = async (id) => {
 </body>
 
 </html>
+
 
 
 

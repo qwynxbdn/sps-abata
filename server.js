@@ -67,52 +67,55 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 // ==========================================
 // SCHEDULES
 // ==========================================
+// ==========================================
+// SCHEDULES (PENGATURAN DURASI & JAM MULAI)
+// ==========================================
 app.get("/api/schedules", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT s.ScheduleId as "ScheduleId", u.Name as "Petugas", c.Name as "Lokasi", 
-      s.ShiftName as "Shift", TO_CHAR(s.ScheduleDate, 'DD/MM/YYYY') as "Tanggal",
-      s.StartTime as "Mulai", s.EndTime as "Selesai"
-      FROM Schedules s
-      JOIN Users u ON s.UserId = u.UserId
-      JOIN Checkpoints c ON s.CheckpointId = c.CheckpointId
-      ORDER BY s.ScheduleDate DESC
+      SELECT 
+        ScheduleId as "ScheduleId", 
+        ScheduleName as "Nama Jadwal", 
+        StartHour as "Mulai (Jam)", 
+        IntervalHours as "Jeda (Jam)", 
+        IsActive as "IsActive"
+      FROM Schedules ORDER BY ScheduleId ASC
     `);
     res.json({ ok: true, data: result.rows });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.post("/api/schedules", authenticateToken, async (req, res) => {
-  const { UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime } = req.body;
+  const { ScheduleName, StartHour, IntervalHours, IsActive } = req.body;
   try {
+    // Jika jadwal ini diset aktif, nonaktifkan yang lain (Hanya boleh 1 yang aktif)
+    if (IsActive) await pool.query("UPDATE Schedules SET IsActive = FALSE");
     await pool.query(
-      "INSERT INTO Schedules (UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime) VALUES ($1, $2, $3, $4, $5, $6)",
-      [UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime]
+      "INSERT INTO Schedules (ScheduleName, StartHour, IntervalHours, IsActive) VALUES ($1, $2, $3, $4)",
+      [ScheduleName, StartHour, IntervalHours, IsActive]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.put("/api/schedules", authenticateToken, async (req, res) => {
-  const { ScheduleId, UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime } = req.body;
+  const { ScheduleId, ScheduleName, StartHour, IntervalHours, IsActive } = req.body;
   try {
+    if (IsActive) await pool.query("UPDATE Schedules SET IsActive = FALSE WHERE ScheduleId != $1", [ScheduleId]);
     await pool.query(
-      "UPDATE Schedules SET UserId=$1, CheckpointId=$2, ShiftName=$3, ScheduleDate=$4, StartTime=$5, EndTime=$6 WHERE ScheduleId=$7",
-      [UserId, CheckpointId, ShiftName, ScheduleDate, StartTime, EndTime, ScheduleId]
+      "UPDATE Schedules SET ScheduleName=$1, StartHour=$2, IntervalHours=$3, IsActive=$4 WHERE ScheduleId=$5",
+      [ScheduleName, StartHour, IntervalHours, IsActive, ScheduleId]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// --- HAPUS SCHEDULE ---
 app.delete("/api/schedules/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query("DELETE FROM Schedules WHERE ScheduleId = $1", [id]);
     res.json({ ok: true });
-  } catch (err) { 
-    res.status(500).json({ ok: false, error: err.message }); 
-  }
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 // ==========================================
@@ -157,11 +160,26 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
 app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
   const { month, year } = req.query;
   try {
+    // 1. Ambil pengaturan jadwal yang sedang aktif
+    const schedRes = await pool.query("SELECT StartHour, IntervalHours FROM Schedules WHERE IsActive = TRUE LIMIT 1");
+    let startHour = 7;
+    let interval = 2;
+    
+    if (schedRes.rows.length > 0) {
+      startHour = parseInt(schedRes.rows[0].starthour);
+      interval = parseInt(schedRes.rows[0].intervalhours);
+    }
+    
+    // Cegah error jika interval diinput 0
+    if (interval < 1) interval = 1; 
+    const totalSteps = Math.floor(24 / interval);
+
+    // 2. Query untuk membuat Matrix berdasarkan konfigurasi dinamis di atas
     const query = `
       WITH RECURSIVE hours AS (
-          SELECT 7 AS start_hour, 1 AS step
+          SELECT $3::int AS start_hour, 1 AS step
           UNION ALL 
-          SELECT (start_hour + 2) % 24, step + 1 FROM hours WHERE step < 12
+          SELECT (start_hour + $4::int) % 24, step + 1 FROM hours WHERE step < $5::int
       ),
       days AS (
           SELECT generate_series(
@@ -180,18 +198,12 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
       CROSS JOIN Checkpoints c
       LEFT JOIN PatrolLogs l ON 
         l.CheckpointId = c.CheckpointId AND 
-        -- KONVERSI UTC KE WIB (+7 Jam) SEBELUM DICOCOKKAN
         (l.Timestamp + INTERVAL '7 hours')::date = d.date AND
-        (
-          (h.start_hour <= 22 AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) >= h.start_hour AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) < h.start_hour + 2)
-          OR
-          (h.start_hour = 23 AND (EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) >= 23 OR EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) < 1))
-          OR
-          (h.start_hour < 7 AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) >= h.start_hour AND EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) < h.start_hour + 2)
-        )
+        -- LOGIKA KETAT: Scan harus persis di jam yang sama dengan slot tabel (XX:00:00 - XX:59:59)
+        EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) = h.start_hour
       ORDER BY h.step ASC, lokasi ASC, tgl ASC;
     `;
-    const result = await pool.query(query, [parseInt(month), parseInt(year)]);
+    const result = await pool.query(query, [parseInt(month), parseInt(year), startHour, interval, totalSteps]);
     res.json({ ok: true, data: result.rows });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -320,6 +332,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

@@ -300,12 +300,51 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
   }
 });
 
+// ==========================================
+// API DELETE (USERS, CHECKPOINTS, LOGS)
+// ==========================================
+
+// 1. Hapus User
+app.delete("/api/users/:id", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
+    await pool.query("DELETE FROM Users WHERE UserId = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    // 23503 adalah kode error PostgreSQL untuk Foreign Key Violation
+    if (err.code === '23503') return res.status(400).json({ ok: false, error: "Gagal: User ini memiliki riwayat scan. Solusi: Gunakan tombol Edit dan ubah status menjadi 'Non-Aktif'." });
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 2. Hapus Checkpoint
+app.delete("/api/checkpoints/:id", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
+    await pool.query("DELETE FROM Checkpoints WHERE CheckpointId = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === '23503') return res.status(400).json({ ok: false, error: "Gagal: Lokasi ini memiliki riwayat scan. Solusi: Gunakan tombol Edit dan ubah status menjadi 'Inaktif'." });
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 3. Hapus Patrol Log (Hanya Admin)
+app.delete("/api/patrollogs/:id", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak. Hanya Admin yang dapat menghapus riwayat." });
+    await pool.query("DELETE FROM PatrolLogs WHERE LogId = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 // --- STATIC SERVING ---
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

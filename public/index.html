@@ -670,11 +670,10 @@ if (offcanvasInst) offcanvasInst.hide();
     }
 
     const dataModal = new bootstrap.Modal(document.getElementById('dataModal'));
-    // --- CARI DAN UBAH BAGIAN INI ---
 app.openDataModal = () => {
   if (appState.currentTableType === 'Users') buildUserForm();
   else if (appState.currentTableType === 'Checkpoints') buildCheckpointForm();
-  else if (appState.currentTableType === 'Schedules') buildScheduleForm(); // Tambahkan baris ini!
+  else if (appState.currentTableType === 'Schedules') buildScheduleForm(); // Baris ini yang memanggil form jadwal
 };
 
     // --- FORM USERS ---
@@ -1024,6 +1023,7 @@ async function buildScheduleForm(data = null) {
 </body>
 
 </html>
+
 
 
 

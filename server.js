@@ -18,6 +18,18 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+// --- HELPER: FUNGSI HITUNG JARAK ---
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Radius bumi dalam meter
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Hasil dalam meter
+}
+
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -55,23 +67,40 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 
 // --- SCAN (VERSI TANPA KOLOM GPS) ---
 app.post("/api/scan", authenticateToken, async (req, res) => {
-  const { barcode } = req.body;
+  const { barcode, lat, lng } = req.body; // Data dari HP petugas
   try {
+    // 1. Ambil data titik koordinat checkpoint dari database
     const cpRes = await pool.query("SELECT * FROM Checkpoints WHERE BarcodeValue = $1 AND Active = TRUE", [barcode]);
     if (cpRes.rows.length === 0) return res.status(404).json({ ok: false, error: "Checkpoint tidak ditemukan!" });
 
     const cp = cpRes.rows[0];
     
-    // Simpan hanya kolom yang pasti ada di database Anda
+    // 2. LOGIKA VALIDASI JARAK (PENTING!)
+    // Kita bandingkan lokasi HP (lat, lng) dengan lokasi Checkpoint (cp.latitude, cp.longitude)
+    if (cp.latitude && cp.longitude) {
+      const distance = getDistance(lat, lng, parseFloat(cp.latitude), parseFloat(cp.longitude));
+      const radiusLimit = cp.radiusmeters || 50; // Default 50 meter jika tidak diisi
+
+      if (distance > radiusLimit) {
+        return res.status(400).json({ 
+          ok: false, 
+          error: `Anda terlalu jauh dari lokasi! Jarak: ${Math.round(distance)} meter.` 
+        });
+      }
+    }
+
+    // 3. SIMPAN LOG (SESUAIKAN DENGAN KOLOM DB ANDA)
+    // Jangan masukkan Latitude/Longitude ke sini jika tabel PatrolLogs Anda tidak punya kolomnya!
     await pool.query(
       "INSERT INTO PatrolLogs (CheckpointId, UserId, Username, BarcodeValue, Timestamp, Result) VALUES ($1, $2, $3, $4, NOW(), $5)",
       [cp.checkpointid, req.user.userId, req.user.username, barcode, 'OK']
     );
 
-    res.json({ ok: true, data: { locationName: cp.name, distance: 0 } });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+    res.json({ ok: true, data: { locationName: cp.name } });
+  } catch (err) { 
+    res.status(500).json({ ok: false, error: err.message }); 
+  }
 });
-
 // --- USERS CRUD ---
 app.get("/api/users", authenticateToken, async (req, res) => {
   try {
@@ -156,3 +185,4 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+

@@ -499,6 +499,7 @@
       if (viewId === 'dashboard') {
         document.getElementById('content-dashboard').classList.remove('d-none');
         document.getElementById('dashUserInfo').innerHTML = `<b>Nama:</b> ${appState.user.Name} <br> <b>Role:</b> ${appState.user.Role}`;
+        app.loadDashboardStats();
       } else if (viewId === 'scan') {
         document.getElementById('content-scan').classList.remove('d-none');
         initScanner();
@@ -1152,10 +1153,67 @@ app.deleteSchedule = async (id) => {
     UI.hideLoader();
   }
 };
+
+    // --- FITUR STORAGE MONITOR & CLEANUP ---
+    app.loadDashboardStats = async () => {
+      // Fitur ini hanya muncul untuk Admin
+      if (app.hasPerm('all')) {
+        document.getElementById('storageCardContainer').classList.remove('d-none');
+        try {
+          const res = await apiCall('system/status', null, 'GET');
+          if (res.ok) {
+            const bytes = res.data.sizeBytes;
+            const maxBytes = 500 * 1024 * 1024; // Limit Free Tier Supabase (500MB)
+            
+            let percent = (bytes / maxBytes) * 100;
+            if (percent > 100) percent = 100;
+
+            document.getElementById('dbSizeText').innerText = res.data.sizeText;
+            document.getElementById('dbLogsCount').innerText = res.data.totalLogs.toLocaleString('id-ID');
+            
+            const bar = document.getElementById('dbProgressBar');
+            bar.style.width = percent + '%';
+            
+            // Ubah warna indikator jika sudah hampir penuh
+            if (percent > 85) bar.className = 'progress-bar bg-danger progress-bar-striped progress-bar-animated';
+            else if (percent > 60) bar.className = 'progress-bar bg-warning progress-bar-striped progress-bar-animated';
+            else bar.className = 'progress-bar bg-success progress-bar-striped progress-bar-animated';
+          }
+        } catch (e) { console.error("Gagal memuat status DB", e); }
+      }
+    };
+
+    app.cleanupDatabase = async () => {
+      const confirm = await Swal.fire({
+        title: 'Bersihkan Database?',
+        html: "Semua data patroli yang usianya <b>lebih dari 3 bulan</b> akan dihapus permanen untuk menghemat ruang penyimpanan Supabase.<br><br><b>Apakah Anda yakin?</b>",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Ya, Bersihkan!',
+        cancelButtonText: 'Batal'
+      });
+
+      if (confirm.isConfirmed) {
+        UI.showLoader();
+        try {
+          const res = await apiCall('system/cleanup', null, 'POST');
+          if (res.ok) {
+            Swal.fire('Berhasil!', `Ruang penyimpanan telah dibebaskan. <b>${res.deletedRows}</b> baris log lama berhasil dihapus.`, 'success');
+            app.loadDashboardStats(); // Refresh visual kapasitas
+          }
+        } catch (e) {
+          UI.alert('Gagal Membersihkan', e.message);
+        }
+        UI.hideLoader();
+      }
+    };
   </script>
 </body>
 
 </html>
+
 
 
 

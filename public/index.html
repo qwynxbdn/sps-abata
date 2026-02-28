@@ -959,7 +959,20 @@ app.openDataModal = () => {
         // 5. Render dan Download PDF langsung dari Browser!
         // 5. Buka PDF di Tab Baru
         // Memunculkan dialog print di halaman yang sama
-        pdfMake.createPdf(docDefinition).print();
+        // 5. Teknik Hidden Iframe agar tidak buka tab baru
+        pdfMake.createPdf(docDefinition).getBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = url;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            setTimeout(() => {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }, 500); // Beri jeda 0.5 detik agar PDF selesai dimuat di latar belakang
+          };
+        });
 
       } catch (err) {
         UI.alert('Gagal Mengambil Data', err.message);
@@ -1056,7 +1069,20 @@ app.downloadMatrixReport = async () => {
       }
     };
 
-    pdfMake.createPdf(docDefinition).print();
+    // Teknik Hidden Iframe agar tidak buka tab baru
+        pdfMake.createPdf(docDefinition).getBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = url;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            setTimeout(() => {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }, 500); 
+          };
+        });
     
   } catch (err) {
     UI.alert('Error', err.message);
@@ -1208,6 +1234,7 @@ app.deleteSchedule = async (id) => {
 </body>
 
 </html>
+
 
 
 

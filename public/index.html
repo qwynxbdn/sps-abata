@@ -1069,66 +1069,58 @@ app.downloadMatrixReport = async () => {
 app.editSchedule = (index) => buildScheduleForm(appState.currentTableData[index]);
 
 async function buildScheduleForm(data = null) {
-    document.getElementById('dataModalTitle').innerText = data ? 'Edit Jadwal' : 'Tambah Jadwal';
-    
-    // 1. Tampilkan loading agar user tahu sistem merespon klik
-    UI.showLoader();
-    
-    try {
-        // 2. Ambil data User & Checkpoint secara bersamaan (lebih cepat)
-        const [usersRes, cpRes] = await Promise.all([
-            apiCall('users'),
-            apiCall('checkpoints')
-        ]);
-        
-        let userOptions = usersRes.data.map(u => `<option value="${u.UserId}" ${data && data.UserId === u.UserId ? 'selected' : ''}>${u.Name}</option>`).join('');
-        let cpOptions = cpRes.data.map(c => `<option value="${c.CheckpointId}" ${data && data.CheckpointId === c.CheckpointId ? 'selected' : ''}>${c.Name}</option>`).join('');
+      document.getElementById('dataModalTitle').innerText = data ? 'Edit Setting Jadwal' : 'Tambah Setting Jadwal';
+      
+      const sId = data ? (data.scheduleid || data.ScheduleId) : '';
+      const sName = data ? (data['nama jadwal'] || data['Nama Jadwal']) : 'Jadwal Normal';
+      const sStart = data ? (data['mulai (jam)'] || data['Mulai (Jam)']) : 7;
+      const sInterval = data ? (data['jeda (jam)'] || data['Jeda (Jam)']) : 2;
+      const sActive = data ? (data.isactive || data.IsActive) : false;
 
-        document.getElementById('dataModalBody').innerHTML = `
-            <form id="scheduleForm">
-                <input type="hidden" id="f_schId" value="${data ? data.ScheduleId : ''}">
-                <div class="mb-2"><label>Petugas</label><select id="f_schUser" class="form-select">${userOptions}</select></div>
-                <div class="mb-2"><label>Lokasi</label><select id="f_schCp" class="form-select">${cpOptions}</select></div>
-                <div class="mb-2"><label>Shift</label><input type="text" id="f_schShift" class="form-control" value="${data ? data.Shift : ''}" placeholder="Pagi / Malam"></div>
-                <div class="mb-2"><label>Tanggal</label><input type="date" id="f_schDate" class="form-control" value="${data ? data.TanggalRaw : ''}"></div>
-            </form>
-        `;
-        
-        document.getElementById('dataModalSaveBtn').onclick = async () => {
-            const id = document.getElementById('f_schId').value;
-            const p = {
-                ScheduleId: id,
-                UserId: document.getElementById('f_schUser').value,
-                CheckpointId: document.getElementById('f_schCp').value,
-                ShiftName: document.getElementById('f_schShift').value,
-                ScheduleDate: document.getElementById('f_schDate').value
-            };
-            
-            // Tampilkan loading saat proses simpan
-            UI.showLoader();
-            try {
-                const method = id ? 'PUT' : 'POST';
-                const res = await apiCall('schedules', p, method);
-                if (res.ok) { 
-                    UI.toast('Jadwal tersimpan'); 
-                    dataModal.hide(); 
-                    loadDataTable('Schedules'); 
-                }
-            } catch (err) {
-                UI.alert('Gagal Menyimpan', err.message);
-            }
-            UI.hideLoader();
-        };
-        
-        // 3. Matikan loading lalu tampilkan form popup
-        UI.hideLoader();
-        dataModal.show();
-        
-    } catch (error) {
-        UI.hideLoader();
-        UI.alert('Gagal Memuat Form', error.message);
+      document.getElementById('dataModalBody').innerHTML = `
+          <form id="scheduleForm">
+              <input type="hidden" id="f_schId" value="${sId}">
+              <div class="mb-2"><label>Nama/Jenis Jadwal</label><input type="text" id="f_schName" class="form-control" value="${sName}" required></div>
+              <div class="row">
+                  <div class="col-6 mb-2"><label>Jam Mulai (0-23)</label><input type="number" id="f_schStart" min="0" max="23" class="form-control" value="${sStart}" required></div>
+                  <div class="col-6 mb-2"><label>Jeda (Jam)</label><input type="number" id="f_schInterval" min="1" max="24" class="form-control" value="${sInterval}" required></div>
+              </div>
+              <div class="mb-2 mt-2"><label>Status Penggunaan</label><select id="f_schActive" class="form-select">
+                <option value="true" ${sActive.toString() === 'true' ? 'selected' : ''}>Aktif (Gunakan patokan ini)</option>
+                <option value="false" ${sActive.toString() === 'false' ? 'selected' : ''}>Tidak Aktif</option>
+              </select>
+              <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> Hanya 1 jadwal yang boleh aktif sebagai patokan tabel Matrix.</small>
+              </div>
+          </form>
+      `;
+      
+      document.getElementById('dataModalSaveBtn').onclick = async () => {
+          const id = document.getElementById('f_schId').value;
+          const p = {
+              ScheduleId: id,
+              ScheduleName: document.getElementById('f_schName').value,
+              StartHour: parseInt(document.getElementById('f_schStart').value),
+              IntervalHours: parseInt(document.getElementById('f_schInterval').value),
+              IsActive: document.getElementById('f_schActive').value === 'true'
+          };
+          
+          UI.showLoader();
+          try {
+              const method = id ? 'PUT' : 'POST';
+              const res = await apiCall('schedules', p, method);
+              if (res.ok) { 
+                  UI.toast('Pengaturan Jadwal tersimpan'); 
+                  dataModal.hide(); 
+                  loadDataTable('Schedules'); 
+              }
+          } catch (err) {
+              UI.alert('Gagal Menyimpan', err.message);
+          }
+          UI.hideLoader();
+      };
+      
+      dataModal.show();
     }
-}
 
 app.deleteSchedule = async (id) => {
   const confirm = await Swal.fire({
@@ -1216,6 +1208,7 @@ app.deleteSchedule = async (id) => {
 </body>
 
 </html>
+
 
 
 

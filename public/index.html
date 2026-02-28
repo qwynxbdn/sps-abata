@@ -836,7 +836,11 @@ app.openDataModal = () => {
     };
 
     // --- PRINT QR CODE ---
+    // --- PRINT QR CODE ---
     app.printQR = (barcode, name) => {
+      // 1. Munculkan loading saat tombol Cetak diklik
+      UI.showLoader();
+
       const printArea = document.getElementById('printArea');
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&data=${encodeURIComponent(barcode)}`;
 
@@ -850,7 +854,18 @@ app.openDataModal = () => {
       `;
 
       const img = printArea.querySelector('img');
-      img.onload = () => { window.print(); };
+      
+      // 2. Matikan loading tepat saat gambar selesai diunduh, lalu buka dialog Print
+      img.onload = () => { 
+        UI.hideLoader();
+        window.print(); 
+      };
+
+      // 3. Jaga-jaga jika gambar gagal dimuat (misal internet putus)
+      img.onerror = () => {
+        UI.hideLoader();
+        UI.alert('Gagal Memuat QR', 'Tidak dapat mengunduh gambar QR Code. Pastikan koneksi internet Anda stabil.');
+      };
     };
 
     app.downloadPDF = async () => {
@@ -1105,6 +1120,7 @@ app.deleteSchedule = async (id) => {
 </body>
 
 </html>
+
 
 
 

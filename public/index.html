@@ -659,18 +659,37 @@
         headHTML += '</tr>';
         thead.innerHTML = headHTML;
 
-        let bodyHTML = '';
+       let bodyHTML = '';
         res.data.forEach((row, index) => {
           bodyHTML += '<tr>';
           headers.forEach(h => {
             const hiddenFields = ['hash', 'userid', 'checkpointid', 'scheduleid', 'tanggalraw'];
             if (!hiddenFields.some(f => h.toLowerCase().includes(f))) {
               let val = row[h] !== null ? row[h].toString() : '-';
+              
+              // --- KODE BARU: FORMAT TIMESTAMP KE WIB ---
+              if (h.toLowerCase() === 'timestamp' && val !== '-') {
+                const dateObj = new Date(val);
+                if (!isNaN(dateObj)) {
+                  // Konversi otomatis ke Waktu Indonesia Barat (WIB)
+                  val = dateObj.toLocaleString('id-ID', { 
+                    timeZone: 'Asia/Jakarta', 
+                    day: '2-digit', month: '2-digit', year: 'numeric', 
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hour12: false
+                  }).replace(/\./g, ':') + ' WIB';
+                }
+              }
+              // ------------------------------------------
+
               if (val.length > 40) val = val.substring(0, 40) + '...';
               
               // Format Badge untuk status boolean
               if (val === 'true' || val === 'Aktif') val = '<span class="badge bg-success">Aktif</span>';
               if (val === 'false' || val === 'Inaktif') val = '<span class="badge bg-danger">Inaktif</span>';
+              
+              // Beri format khusus jika teksnya 'OK' atau 'ABSENT'
+              if (val === 'OK') val = '<span class="badge bg-primary">OK</span>';
               
               bodyHTML += `<td>${val}</td>`;
             }
@@ -1120,6 +1139,7 @@ app.deleteSchedule = async (id) => {
 </body>
 
 </html>
+
 
 
 

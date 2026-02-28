@@ -104,6 +104,17 @@ app.put("/api/schedules", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+// --- HAPUS SCHEDULE ---
+app.delete("/api/schedules/:id", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query("DELETE FROM Schedules WHERE ScheduleId = $1", [id]);
+    res.json({ ok: true });
+  } catch (err) { 
+    res.status(500).json({ ok: false, error: err.message }); 
+  }
+});
+
 // ==========================================
 // SCAN & LOGS
 // ==========================================
@@ -242,3 +253,4 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+

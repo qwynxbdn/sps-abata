@@ -144,18 +144,22 @@
   </div>
 
   <div id="view-login" class="container vh-100 d-flex justify-content-center align-items-center">
-    <div class="card shadow-sm" style="width: 100%; max-width: 400px;">
+    <div class="card shadow-sm" style="width: 100%; max-width: 350px; border: none; border-radius: 15px;">
       <div class="card-body p-4">
-        <div class="text-center mb-4">
-          <img src="/logo-login.png" alt="Logo SPS Abata" style="max-width: 180px; height: auto; max-height: 100px; object-fit: contain; margin-bottom: 15px;">
-          
-          <h4 class="fw-bold mt-2">SPS Login</h4>
-          <p class="text-muted small">Selamat Datang di Secure Patrol System (SPS) LPI Abata Leaderss</p>
-        </div>
+        <div class="text-center mb-3">
+        <img src="/logo-login.png" alt="Logo" style="height: 45px; width: auto; margin-bottom: 10px">
+      </div>
+
+      <div class="text-center mb-1">
+        <h3 class="text-primary fw-bold mb-1">
+          <i class="bi bi-shield-lock-fill"></i> SPS Login
+        </h3>
+        <p class="text-muted small">Selamat datang di Secure Patrol System LPI Abata Leaderss</p>
+      </div>
         <form id="loginForm">
-          <div class="mb-3"><label class="form-label">Username</label><input type="text" id="loginUsername"
+          <div class="mb-3"><label class="form-label fw-semibold">Username</label><input type="text" id="loginUsername"
               class="form-control" required></div>
-          <div class="mb-4"><label class="form-label">Password</label><input type="password" id="loginPassword"
+          <div class="mb-4"><label class="form-label fw-semibold">Password</label><input type="password" id="loginPassword"
               class="form-control" required></div>
           <button type="submit" class="btn btn-primary w-100 fw-bold">Sign In</button>
         </form>
@@ -1236,26 +1240,4 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

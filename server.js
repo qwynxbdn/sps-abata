@@ -301,9 +301,12 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
 // ==========================================
 // GET PATROL LOGS (ROLE-BASED & NAMA LOKASI)
 // ==========================================
+// ==========================================
+// GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER)
+// ==========================================
 app.get("/api/patrollogs", authenticateToken, async (req, res) => {
   try {
-    // UBAH URUTAN SELECT DI SINI:
+    // Gunakan WHERE 1=1 agar kita bisa menambahkan filter AND di bawahnya dengan mudah
     let query = `
       SELECT 
         l.Timestamp as "timestamp",
@@ -314,19 +317,40 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
         l.LogId as "logid"
       FROM PatrolLogs l
       LEFT JOIN Checkpoints c ON l.CheckpointId = c.CheckpointId
+      WHERE 1=1 
     `;
     
     const params = [];
+    let paramIndex = 1;
 
-    // FILTER ROLE: Jika user BUKAN Admin (tidak punya perm 'all')
+    // 1. FILTER ROLE / USERNAME
     if (!req.user.permissions.includes('all')) {
-      // Gunakan LOWER() agar kebal terhadap perbedaan huruf besar/kecil
-      query += ` WHERE LOWER(l.Username) = LOWER($1) `;
+      // Jika Guard: Paksa hanya melihat miliknya sendiri
+      query += ` AND LOWER(l.Username) = LOWER($${paramIndex++}) `;
       const uname = req.user.username || req.user.Username || req.user.name;
       params.push(uname);
+    } else if (req.query.username) {
+      // Jika Admin dan memfilter username dari kotak pilihan
+      query += ` AND LOWER(l.Username) = LOWER($${paramIndex++}) `;
+      params.push(req.query.username);
     }
 
-    query += ` ORDER BY l.Timestamp DESC LIMIT 200`;
+    // 2. FILTER BULAN & TAHUN (Wajib ada default dari frontend)
+    if (req.query.month && req.query.year) {
+      query += ` AND EXTRACT(MONTH FROM l.Timestamp + INTERVAL '7 hours') = $${paramIndex++} `;
+      params.push(parseInt(req.query.month));
+      query += ` AND EXTRACT(YEAR FROM l.Timestamp + INTERVAL '7 hours') = $${paramIndex++} `;
+      params.push(parseInt(req.query.year));
+    }
+
+    // 3. FILTER LOKASI
+    if (req.query.location) {
+      query += ` AND c.Name = $${paramIndex++} `;
+      params.push(req.query.location);
+    }
+
+    // Urutkan dari terbaru dan beri batas max 1000 agar tidak overload
+    query += ` ORDER BY l.Timestamp DESC LIMIT 1000`;
 
     const result = await pool.query(query, params);
     res.json({ ok: true, data: result.rows });
@@ -379,6 +403,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

@@ -332,9 +332,17 @@
       currentTableType: null
     };
 
-    const UI = {
-      showLoader: () => document.getElementById('loader').classList.remove('d-none'),
-      hideLoader: () => document.getElementById('loader').classList.add('d-none'),
+   const UI = {
+      showLoader: () => {
+        const loader = document.getElementById('loader');
+        loader.classList.remove('d-none');
+        loader.classList.add('d-flex'); // Wajib ditambah agar loader berada di tengah
+      },
+      hideLoader: () => {
+        const loader = document.getElementById('loader');
+        loader.classList.add('d-none');
+        loader.classList.remove('d-flex');
+      },
       toast: (msg, icon = 'success') => Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 3000 }),
       alert: (title, text, icon = 'error') => Swal.fire({ title, text, icon })
     };
@@ -1054,6 +1062,7 @@ async function buildScheduleForm(data = null) {
 </body>
 
 </html>
+
 
 
 

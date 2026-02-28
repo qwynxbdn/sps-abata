@@ -958,7 +958,8 @@ app.openDataModal = () => {
 
         // 5. Render dan Download PDF langsung dari Browser!
         // 5. Buka PDF di Tab Baru
-        pdfMake.createPdf(docDefinition).open();
+        // Memunculkan dialog print di halaman yang sama
+        pdfMake.createPdf(docDefinition).print();
 
       } catch (err) {
         UI.alert('Gagal Mengambil Data', err.message);
@@ -1055,7 +1056,7 @@ app.downloadMatrixReport = async () => {
       }
     };
 
-    pdfMake.createPdf(docDefinition).open();
+    pdfMake.createPdf(docDefinition).print();
     
   } catch (err) {
     UI.alert('Error', err.message);
@@ -1215,6 +1216,7 @@ app.deleteSchedule = async (id) => {
 </body>
 
 </html>
+
 
 
 

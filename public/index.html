@@ -527,7 +527,7 @@
     const menus = [
       { id: 'dashboard', label: 'Dashboard', icon: 'bi-house-door', perm: '' },
       { id: 'scan', label: 'Scan Patrol', icon: 'bi-upc-scan', perm: 'scan.create' },
-      { id: 'PatrolLogs', label: 'Patrol Logs', icon: 'bi-journal-text', perm: 'logs.read' },
+      { id: 'PatrolLogs', label: 'Patrol Logs', icon: 'bi-journal-text', perm: 'scan.create' },
       { id: 'Checkpoints', label: 'Checkpoints', icon: 'bi-geo-alt', perm: 'checkpoints.read' },
       { id: 'Schedules', label: 'Schedules', icon: 'bi-calendar-check', perm: 'schedules.read' },
       { id: 'Users', label: 'Users', icon: 'bi-people', perm: 'users.read' }
@@ -1300,5 +1300,6 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 

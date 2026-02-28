@@ -467,9 +467,9 @@
       }
 
       // Tutup offcanvas mobile jika terbuka
-      const offcanvasInst = bootstrap.Offcanvas.getInstance(document.getElementById('sidebarOffcanvas'));
-      if (offcanvasInst) offcanvasInst.hide();
-    }
+      const offcanvasEl = document.getElementById('sidebarOffcanvas');
+const offcanvasInst = bootstrap.Offcanvas.getInstance(offcanvasEl);
+if (offcanvasInst) offcanvasInst.hide();
 
     // --- 5. SCAN PATROL (BULLETPROOF IOS/ANDROID CAMERA) ---
     let gpsWatchId = null;
@@ -670,10 +670,12 @@
     }
 
     const dataModal = new bootstrap.Modal(document.getElementById('dataModal'));
-    app.openDataModal = () => {
-      if (appState.currentTableType === 'Users') buildUserForm();
-      else if (appState.currentTableType === 'Checkpoints') buildCheckpointForm();
-    };
+    // --- CARI DAN UBAH BAGIAN INI ---
+app.openDataModal = () => {
+  if (appState.currentTableType === 'Users') buildUserForm();
+  else if (appState.currentTableType === 'Checkpoints') buildCheckpointForm();
+  else if (appState.currentTableType === 'Schedules') buildScheduleForm(); // Tambahkan baris ini!
+};
 
     // --- FORM USERS ---
     app.editUser = (index) => buildUserForm(appState.currentTableData[index]);
@@ -1022,6 +1024,7 @@ async function buildScheduleForm(data = null) {
 </body>
 
 </html>
+
 
 
 

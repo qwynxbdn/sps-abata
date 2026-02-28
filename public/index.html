@@ -296,6 +296,44 @@
             </div>
           </div>
 
+<div id="content-schedules" class="content-section d-none">
+            <h2 class="fw-bold mb-4">Pengaturan Jadwal Patroli</h2>
+            <div class="row">
+              <div class="col-md-6 col-lg-5">
+                <div class="card shadow-sm border-0">
+                  <div class="card-body p-4">
+                    <div class="alert alert-info py-2 mb-4 small">
+                      <i class="bi bi-info-circle-fill me-2"></i> Pengaturan ini berlaku global untuk <b>semua lokasi dan petugas</b> serta akan mengubah kerangka tabel Matrix Laporan Anda.
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Mulai Patroli (Jam)</label>
+                      <div class="input-group">
+                        <input type="number" id="setStartHour" class="form-control" min="0" max="23" placeholder="Contoh: 7">
+                        <span class="input-group-text">:00 WIB</span>
+                      </div>
+                      <small class="text-muted">Format 24 Jam (0 - 23)</small>
+                    </div>
+                    
+                    <div class="mb-4">
+                      <label class="form-label fw-bold">Frekuensi Patroli</label>
+                      <div class="input-group">
+                        <span class="input-group-text">Per</span>
+                        <input type="number" id="setInterval" class="form-control" min="1" max="24" placeholder="Contoh: 2">
+                        <span class="input-group-text">Jam</span>
+                      </div>
+                      <small class="text-muted">Jeda waktu antar shift</small>
+                    </div>
+                    
+                    <button class="btn btn-primary w-100 fw-bold" onclick="app.saveScheduleSettings()">
+                      <i class="bi bi-save me-2"></i> Simpan Pengaturan
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <div id="content-data" class="content-section d-none">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-3">
               <h2 class="fw-bold" id="dataTitle">Manajemen Data</h2>
@@ -499,10 +537,14 @@
       if (viewId === 'dashboard') {
         document.getElementById('content-dashboard').classList.remove('d-none');
         document.getElementById('dashUserInfo').innerHTML = `<b>Nama:</b> ${appState.user.Name} <br> <b>Role:</b> ${appState.user.Role}`;
-        app.loadDashboardStats();
+        if(app.loadDashboardStats) app.loadDashboardStats();
       } else if (viewId === 'scan') {
         document.getElementById('content-scan').classList.remove('d-none');
         initScanner();
+      } else if (viewId === 'Schedules') {
+        // JIKA MENU SCHEDULES, BUKA HALAMAN PENGATURAN, BUKAN TABEL
+        document.getElementById('content-schedules').classList.remove('d-none');
+        app.loadScheduleSettings();
       } else {
         document.getElementById('content-data').classList.remove('d-none');
         loadDataTable(viewId);
@@ -512,9 +554,7 @@
       const offcanvasEl = document.getElementById('sidebarOffcanvas');
       const offcanvasInst = bootstrap.Offcanvas.getInstance(offcanvasEl);
       if (offcanvasInst) offcanvasInst.hide();
-    } // <--- KURUNG TUTUP INI WAJIB ADA UNTUK MENUTUP FUNCTION NAVIGATE
-
-    // --- 5. SCAN PATROL (BULLETPROOF IOS/ANDROID CAMERA) ---;
+    }
 
     // --- 5. SCAN PATROL (BULLETPROOF IOS/ANDROID CAMERA) ---
     let gpsWatchId = null;
@@ -635,11 +675,10 @@
       document.getElementById('dataTitle').innerText = 'Data ' + tableName;
       const btnAdd = document.getElementById('btnAddNew');
 
-      // Tombol tambah berdasarkan permisi (Schedules ditambahkan)
+      // UBAH MENJADI (Hapus baris Schedules):
       if (
         (tableName === 'Users' && app.hasPerm('users.write')) ||
-        (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write')) ||
-        (tableName === 'Schedules' && app.hasPerm('all'))
+        (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write'))
       ) {
         btnAdd.classList.remove('d-none');
       } else {
@@ -671,7 +710,8 @@
         });
         
         // Tambahkan kolom AKSI jika tabel bisa dimodifikasi
-        if (['Users', 'Checkpoints', 'Schedules'].includes(tableName)) {
+        // UBAH MENJADI:
+        if (['Users', 'Checkpoints'].includes(tableName)) {
           headHTML += '<th>AKSI</th>';
         }
         headHTML += '</tr>';
@@ -721,12 +761,6 @@
               <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editCheckpoint(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
               <button class="btn btn-sm btn-outline-dark" onclick="app.printQR('${row.barcodevalue || row.BarcodeValue}', '${row.name || row.Name}')" title="Print QR"><i class="bi bi-printer"></i> Cetak</button>
             </td>`;
-         } else if (tableName === 'Schedules' && app.hasPerm('all')) {
-  bodyHTML += `<td style="white-space:nowrap;">
-    <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editSchedule(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
-    <button class="btn btn-sm btn-outline-danger" onclick="app.deleteSchedule(${row.scheduleid || row.ScheduleId})" title="Hapus"><i class="bi bi-trash"></i></button>
-  </td>`;
-}
           
           bodyHTML += '</tr>';
         });
@@ -739,8 +773,7 @@
     const dataModal = new bootstrap.Modal(document.getElementById('dataModal'));
 app.openDataModal = () => {
   if (appState.currentTableType === 'Users') buildUserForm();
-  else if (appState.currentTableType === 'Checkpoints') buildCheckpointForm();
-  else if (appState.currentTableType === 'Schedules') buildScheduleForm(); // Baris ini yang memanggil form jadwal
+  else if (appState.currentTableType === 'Checkpoints') buildCheckpointForm(); // Baris ini yang memanggil form jadwal
 };
 
     // --- FORM USERS ---
@@ -1091,89 +1124,7 @@ app.downloadMatrixReport = async () => {
   UI.hideLoader();
 };
 
-    // Tambahkan di dalam script index.html
-app.editSchedule = (index) => buildScheduleForm(appState.currentTableData[index]);
-
-async function buildScheduleForm(data = null) {
-      document.getElementById('dataModalTitle').innerText = data ? 'Edit Setting Jadwal' : 'Tambah Setting Jadwal';
-      
-      const sId = data ? (data.scheduleid || data.ScheduleId) : '';
-      const sName = data ? (data['nama jadwal'] || data['Nama Jadwal']) : 'Jadwal Normal';
-      const sStart = data ? (data['mulai (jam)'] || data['Mulai (Jam)']) : 7;
-      const sInterval = data ? (data['jeda (jam)'] || data['Jeda (Jam)']) : 2;
-      const sActive = data ? (data.isactive || data.IsActive) : false;
-
-      document.getElementById('dataModalBody').innerHTML = `
-          <form id="scheduleForm">
-              <input type="hidden" id="f_schId" value="${sId}">
-              <div class="mb-2"><label>Nama/Jenis Jadwal</label><input type="text" id="f_schName" class="form-control" value="${sName}" required></div>
-              <div class="row">
-                  <div class="col-6 mb-2"><label>Jam Mulai (0-23)</label><input type="number" id="f_schStart" min="0" max="23" class="form-control" value="${sStart}" required></div>
-                  <div class="col-6 mb-2"><label>Jeda (Jam)</label><input type="number" id="f_schInterval" min="1" max="24" class="form-control" value="${sInterval}" required></div>
-              </div>
-              <div class="mb-2 mt-2"><label>Status Penggunaan</label><select id="f_schActive" class="form-select">
-                <option value="true" ${sActive.toString() === 'true' ? 'selected' : ''}>Aktif (Gunakan patokan ini)</option>
-                <option value="false" ${sActive.toString() === 'false' ? 'selected' : ''}>Tidak Aktif</option>
-              </select>
-              <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> Hanya 1 jadwal yang boleh aktif sebagai patokan tabel Matrix.</small>
-              </div>
-          </form>
-      `;
-      
-      document.getElementById('dataModalSaveBtn').onclick = async () => {
-          const id = document.getElementById('f_schId').value;
-          const p = {
-              ScheduleId: id,
-              ScheduleName: document.getElementById('f_schName').value,
-              StartHour: parseInt(document.getElementById('f_schStart').value),
-              IntervalHours: parseInt(document.getElementById('f_schInterval').value),
-              IsActive: document.getElementById('f_schActive').value === 'true'
-          };
-          
-          UI.showLoader();
-          try {
-              const method = id ? 'PUT' : 'POST';
-              const res = await apiCall('schedules', p, method);
-              if (res.ok) { 
-                  UI.toast('Pengaturan Jadwal tersimpan'); 
-                  dataModal.hide(); 
-                  loadDataTable('Schedules'); 
-              }
-          } catch (err) {
-              UI.alert('Gagal Menyimpan', err.message);
-          }
-          UI.hideLoader();
-      };
-      
-      dataModal.show();
-    }
-
-app.deleteSchedule = async (id) => {
-  const confirm = await Swal.fire({
-    title: 'Hapus Jadwal?',
-    text: "Data jadwal yang dihapus tidak dapat dikembalikan!",
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Ya, hapus!',
-    cancelButtonText: 'Batal'
-  });
-
-  if (confirm.isConfirmed) {
-    UI.showLoader();
-    try {
-      const res = await apiCall(`schedules/${id}`, null, 'DELETE');
-      if (res.ok) {
-        UI.toast('Jadwal berhasil dihapus');
-        loadDataTable('Schedules'); // Refresh tabel otomatis
-      }
-    } catch (e) {
-      UI.alert('Gagal Menghapus', e.message);
-    }
-    UI.hideLoader();
-  }
-};
+ 
 
     // --- FITUR STORAGE MONITOR & CLEANUP ---
     app.loadDashboardStats = async () => {
@@ -1230,10 +1181,44 @@ app.deleteSchedule = async (id) => {
         UI.hideLoader();
       }
     };
+
+    // --- LOGIKA PENGATURAN JADWAL GLOBAL ---
+    app.loadScheduleSettings = async () => {
+      UI.showLoader();
+      try {
+        const res = await apiCall('schedules', null, 'GET');
+        if (res.ok && res.data) {
+          // Isi nilai form dari database
+          document.getElementById('setStartHour').value = res.data.starthour;
+          document.getElementById('setInterval').value = res.data.intervalhours;
+        }
+      } catch (e) { 
+        UI.alert('Gagal memuat jadwal', e.message); 
+      }
+      UI.hideLoader();
+    };
+
+    app.saveScheduleSettings = async () => {
+      UI.showLoader();
+      try {
+        const p = {
+          StartHour: parseInt(document.getElementById('setStartHour').value),
+          IntervalHours: parseInt(document.getElementById('setInterval').value)
+        };
+        const res = await apiCall('schedules', p, 'PUT');
+        if (res.ok) {
+          Swal.fire('Berhasil!', 'Pengaturan jadwal berhasil diperbarui. Laporan Matrix akan otomatis menyesuaikan jadwal baru ini.', 'success');
+        }
+      } catch (e) { 
+        UI.alert('Gagal menyimpan', e.message); 
+      }
+      UI.hideLoader();
+    };
   </script>
 </body>
 
 </html>
+
 
 
 

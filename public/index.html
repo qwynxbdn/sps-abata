@@ -725,7 +725,8 @@
         
         // Tambahkan kolom AKSI jika tabel bisa dimodifikasi
         // UBAH MENJADI:
-        if (['Users', 'Checkpoints'].includes(tableName)) {
+        // Tambahkan kolom AKSI jika tabel bisa dimodifikasi
+        if (['Users', 'Checkpoints', 'PatrolLogs'].includes(tableName)) {
           headHTML += '<th>AKSI</th>';
         }
         headHTML += '</tr>';
@@ -768,13 +769,26 @@
           });
 
           // Tombol Aksi Berdasarkan Tipe Tabel
+          // Tombol Aksi Berdasarkan Tipe Tabel dan Kebutuhan CRUD
           if (tableName === 'Users' && app.hasPerm('users.write')) {
-            bodyHTML += `<td><button class="btn btn-sm btn-outline-primary" onclick="app.editUser(${index})"><i class="bi bi-pencil"></i> Edit</button></td>`;
+            bodyHTML += `<td style="white-space:nowrap;">
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editUser(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger" onclick="app.deleteData('users', '${row.userid || row.UserId}')" title="Hapus Permanen"><i class="bi bi-trash"></i></button>
+            </td>`;
           } else if (tableName === 'Checkpoints' && app.hasPerm('checkpoints.write')) {
             bodyHTML += `<td style="white-space:nowrap;">
               <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editCheckpoint(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
-              <button class="btn btn-sm btn-outline-dark" onclick="app.printQR('${row.barcodevalue || row.BarcodeValue}', '${row.name || row.Name}')" title="Print QR"><i class="bi bi-printer"></i> Cetak</button>
+              <button class="btn btn-sm btn-outline-dark me-1" onclick="app.printQR('${row.barcodevalue || row.BarcodeValue}', '${row.name || row.Name}')" title="Print QR"><i class="bi bi-printer"></i></button>
+              <button class="btn btn-sm btn-outline-danger" onclick="app.deleteData('checkpoints', '${row.checkpointid || row.CheckpointId}')" title="Hapus Permanen"><i class="bi bi-trash"></i></button>
             </td>`;
+          } else if (tableName === 'PatrolLogs' && app.hasPerm('all')) {
+            // Patrol Logs HANYA punya tombol Hapus (Tanpa Edit demi keamanan), dan hanya untuk Admin
+            bodyHTML += `<td style="white-space:nowrap;">
+              <button class="btn btn-sm btn-outline-danger" onclick="app.deleteData('patrollogs', '${row.logid || row.LogId}')" title="Hapus Riwayat"><i class="bi bi-trash"></i></button>
+            </td>`;
+          } else if (tableName === 'PatrolLogs' && !app.hasPerm('all')) {
+            // Guard tidak bisa mengutak-atik log sama sekali
+            bodyHTML += `<td><span class="badge bg-secondary">Read Only</span></td>`;
           }
           
           bodyHTML += '</tr>';
@@ -1236,7 +1250,50 @@ app.downloadMatrixReport = async () => {
       }
       UI.hideLoader();
     };
+
+    // --- FUNGSI UNIVERSAL UNTUK MENGHAPUS DATA ---
+    app.deleteData = async (endpoint, id) => {
+      let title = "Hapus Data Ini?";
+      let warningText = "Data yang dihapus tidak dapat dikembalikan!";
+      
+      if (endpoint === 'patrollogs') {
+        title = "Hapus Riwayat Log?";
+        warningText = "Peringatan: Menghapus log audit keamanan sangat tidak disarankan kecuali data ini adalah error/spam.";
+      }
+
+      const confirm = await Swal.fire({
+        title: title,
+        text: warningText,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Ya, Hapus Permanen!',
+        cancelButtonText: 'Batal'
+      });
+
+      if (confirm.isConfirmed) {
+        UI.showLoader();
+        try {
+          const res = await apiCall(`${endpoint}/${id}`, null, 'DELETE');
+          if (res.ok) {
+            UI.toast('Data berhasil dihapus');
+            // Refresh tabel yang sedang aktif
+            loadDataTable(appState.currentTableType); 
+          }
+        } catch (e) {
+          // Jika ditolak oleh database (Karena Foreign Key / riwayat masih ada)
+          Swal.fire({
+            title: 'Penghapusan Ditolak',
+            text: e.message,
+            icon: 'error'
+          });
+        }
+        UI.hideLoader();
+      }
+    };
   </script>
 </body>
 
 </html>
+

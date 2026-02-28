@@ -761,6 +761,7 @@
               <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editCheckpoint(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
               <button class="btn btn-sm btn-outline-dark" onclick="app.printQR('${row.barcodevalue || row.BarcodeValue}', '${row.name || row.Name}')" title="Print QR"><i class="bi bi-printer"></i> Cetak</button>
             </td>`;
+          }
           
           bodyHTML += '</tr>';
         });
@@ -1218,7 +1219,6 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
-
 
 
 

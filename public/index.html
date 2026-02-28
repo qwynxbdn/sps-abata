@@ -502,7 +502,7 @@
       document.getElementById('view-app').classList.add('d-none');
     }
 
-    function initApp() {
+   function initApp() {
       document.getElementById('view-login').classList.add('d-none');
       document.getElementById('view-app').classList.remove('d-none');
 
@@ -511,7 +511,13 @@
       document.getElementById('mobileUser').innerText = topText;
 
       buildMenu();
-      navigate('dashboard');
+      
+      // LOGIKA PENGARAHAN HALAMAN CERDAS BERDASARKAN ROLE
+      if (app.hasPerm('all')) {
+        navigate('dashboard'); // Jika Admin, buka Dashboard
+      } else {
+        navigate('scan');      // Jika Guard, langsung buka Scanner!
+      }
     }
 
     const app = {
@@ -525,7 +531,8 @@
 
     // --- 4. NAVIGATION & MENU ---
     const menus = [
-      { id: 'dashboard', label: 'Dashboard', icon: 'bi-house-door', perm: '' },
+      // Ubah perm dari '' (kosong) menjadi 'all'
+      { id: 'dashboard', label: 'Dashboard', icon: 'bi-house-door', perm: 'all' },
       { id: 'scan', label: 'Scan Patrol', icon: 'bi-upc-scan', perm: 'scan.create' },
       { id: 'PatrolLogs', label: 'Patrol Logs', icon: 'bi-journal-text', perm: 'scan.create' },
       { id: 'Checkpoints', label: 'Checkpoints', icon: 'bi-geo-alt', perm: 'checkpoints.read' },
@@ -1300,6 +1307,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

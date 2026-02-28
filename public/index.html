@@ -466,10 +466,13 @@
         loadDataTable(viewId);
       }
 
-      // Tutup offcanvas mobile jika terbuka
+     // Tutup offcanvas mobile jika terbuka
       const offcanvasEl = document.getElementById('sidebarOffcanvas');
-const offcanvasInst = bootstrap.Offcanvas.getInstance(offcanvasEl);
-if (offcanvasInst) offcanvasInst.hide();
+      const offcanvasInst = bootstrap.Offcanvas.getInstance(offcanvasEl);
+      if (offcanvasInst) offcanvasInst.hide();
+    } // <--- KURUNG TUTUP INI WAJIB ADA UNTUK MENUTUP FUNCTION NAVIGATE
+
+    // --- 5. SCAN PATROL (BULLETPROOF IOS/ANDROID CAMERA) ---;
 
     // --- 5. SCAN PATROL (BULLETPROOF IOS/ANDROID CAMERA) ---
     let gpsWatchId = null;
@@ -657,9 +660,12 @@ if (offcanvasInst) offcanvasInst.hide();
               <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editCheckpoint(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
               <button class="btn btn-sm btn-outline-dark" onclick="app.printQR('${row.barcodevalue || row.BarcodeValue}', '${row.name || row.Name}')" title="Print QR"><i class="bi bi-printer"></i> Cetak</button>
             </td>`;
-          } else if (tableName === 'Schedules' && app.hasPerm('all')) {
-            bodyHTML += `<td><button class="btn btn-sm btn-outline-primary" onclick="app.editSchedule(${index})"><i class="bi bi-pencil"></i> Edit</button></td>`;
-          }
+         } else if (tableName === 'Schedules' && app.hasPerm('all')) {
+  bodyHTML += `<td style="white-space:nowrap;">
+    <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editSchedule(${index})" title="Edit"><i class="bi bi-pencil"></i></button>
+    <button class="btn btn-sm btn-outline-danger" onclick="app.deleteSchedule(${row.scheduleid || row.ScheduleId})" title="Hapus"><i class="bi bi-trash"></i></button>
+  </td>`;
+}
           
           bodyHTML += '</tr>';
         });
@@ -1018,11 +1024,37 @@ async function buildScheduleForm(data = null) {
     };
     dataModal.show();
 }
-    
+    app.deleteSchedule = async (id) => {
+  const confirm = await Swal.fire({
+    title: 'Hapus Jadwal?',
+    text: "Data jadwal yang dihapus tidak dapat dikembalikan!",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Ya, hapus!',
+    cancelButtonText: 'Batal'
+  });
+
+  if (confirm.isConfirmed) {
+    UI.showLoader();
+    try {
+      const res = await apiCall(`schedules/${id}`, null, 'DELETE');
+      if (res.ok) {
+        UI.toast('Jadwal berhasil dihapus');
+        loadDataTable('Schedules'); // Refresh tabel otomatis
+      }
+    } catch (e) {
+      UI.alert('Gagal Menghapus', e.message);
+    }
+    UI.hideLoader();
+  }
+};
   </script>
 </body>
 
 </html>
+
 
 
 

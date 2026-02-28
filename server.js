@@ -70,50 +70,24 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 // ==========================================
 // SCHEDULES (PENGATURAN DURASI & JAM MULAI)
 // ==========================================
+// ==========================================
+// PENGATURAN JADWAL GLOBAL (MASTER SETTING)
+// ==========================================
 app.get("/api/schedules", authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT 
-        ScheduleId as "ScheduleId", 
-        ScheduleName as "Nama Jadwal", 
-        StartHour as "Mulai (Jam)", 
-        IntervalHours as "Jeda (Jam)", 
-        IsActive as "IsActive"
-      FROM Schedules ORDER BY ScheduleId ASC
-    `);
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.post("/api/schedules", authenticateToken, async (req, res) => {
-  const { ScheduleName, StartHour, IntervalHours, IsActive } = req.body;
-  try {
-    // Jika jadwal ini diset aktif, nonaktifkan yang lain (Hanya boleh 1 yang aktif)
-    if (IsActive) await pool.query("UPDATE Schedules SET IsActive = FALSE");
-    await pool.query(
-      "INSERT INTO Schedules (ScheduleName, StartHour, IntervalHours, IsActive) VALUES ($1, $2, $3, $4)",
-      [ScheduleName, StartHour, IntervalHours, IsActive]
-    );
-    res.json({ ok: true });
+    // Ambil 1 baris pengaturan saja
+    const result = await pool.query("SELECT StartHour, IntervalHours FROM Schedules LIMIT 1");
+    // Jika tabel kosong, kembalikan default 7 dan 2
+    const data = result.rows.length > 0 ? result.rows[0] : { starthour: 7, intervalhours: 2 };
+    res.json({ ok: true, data: data });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.put("/api/schedules", authenticateToken, async (req, res) => {
-  const { ScheduleId, ScheduleName, StartHour, IntervalHours, IsActive } = req.body;
+  const { StartHour, IntervalHours } = req.body;
   try {
-    if (IsActive) await pool.query("UPDATE Schedules SET IsActive = FALSE WHERE ScheduleId != $1", [ScheduleId]);
-    await pool.query(
-      "UPDATE Schedules SET ScheduleName=$1, StartHour=$2, IntervalHours=$3, IsActive=$4 WHERE ScheduleId=$5",
-      [ScheduleName, StartHour, IntervalHours, IsActive, ScheduleId]
-    );
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.delete("/api/schedules/:id", authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query("DELETE FROM Schedules WHERE ScheduleId = $1", [id]);
+    // Karena ini setting global, kita update semua baris (yang mana hanya ada 1 baris)
+    await pool.query("UPDATE Schedules SET StartHour=$1, IntervalHours=$2", [StartHour, IntervalHours]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -332,6 +306,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

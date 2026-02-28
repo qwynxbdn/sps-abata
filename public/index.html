@@ -226,6 +226,23 @@
 
             <h2 class="fw-bold mb-4 mt-4">Dashboard</h2>
             <div class="row">
+              <div class="col-md-4 mb-3 d-none" id="storageCardContainer">
+                <div class="card shadow-sm h-100 border-warning">
+                  <div class="card-body">
+                    <h5 class="card-title fw-bold text-dark"><i class="bi bi-hdd-stack text-warning"></i> Kapasitas Supabase</h5>
+                    <div class="mt-3">
+                      <span id="dbSizeText" class="fw-bold fs-4 text-dark">Mengambil...</span> <span class="text-muted">/ 500 MB</span>
+                    </div>
+                    <div class="progress mt-2 mb-2" style="height: 8px;">
+                      <div id="dbProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;"></div>
+                    </div>
+                    <p class="small text-muted mb-3">Total Logs: <span id="dbLogsCount" class="fw-bold">0</span> baris tersimpan</p>
+                    <button class="btn btn-sm btn-outline-danger w-100 fw-bold" onclick="app.cleanupDatabase()">
+                      <i class="bi bi-trash3"></i> Hapus Data (> 3 Bulan)
+                    </button>
+                  </div>
+                </div>
+              </div>
               <div class="col-md-4 mb-3">
                 <div class="card text-white bg-primary shadow-sm h-100">
                   <div class="card-body">
@@ -1139,6 +1156,7 @@ app.deleteSchedule = async (id) => {
 </body>
 
 </html>
+
 
 
 

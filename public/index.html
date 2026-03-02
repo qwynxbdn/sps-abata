@@ -1503,10 +1503,19 @@ app.downloadMatrixReport = async () => {
     };
 
     // --- PENGATURAN SERVICE WORKER (AUTO-UPDATE PWA) ---
+    // --- PENGATURAN SERVICE WORKER (AUTO-UPDATE PWA) ---
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').then(registration => {
           
+          // [KODE BARU]: PAKSA CEK UPDATE SAAT APLIKASI DIBUKA DARI BACKGROUND (RESUME)
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              // Jika aplikasi kembali ke layar utama, paksa Service Worker mengecek Vercel
+              registration.update(); 
+            }
+          });
+
           // Deteksi jika ada update kode baru di server
           registration.onupdatefound = () => {
             const installingWorker = registration.installing;
@@ -1537,6 +1546,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

@@ -230,14 +230,12 @@
                 <div class="col-md-3">
                   <label class="small text-muted">Bulan</label>
                   <select id="reportMonth" class="form-select">
-                    <option value="1">Januari</option>
-                    <option value="2" selected>Februari</option>
-                    <option value="3">Maret</option>
-                  </select>
+                    </select>
                 </div>
                 <div class="col-md-3">
                   <label class="small text-muted">Tahun</label>
-                  <input type="number" id="reportYear" class="form-control" value="2026">
+                  <select id="reportYear" class="form-select">
+                    </select>
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                   <button class="btn btn-danger w-100" onclick="app.downloadPDF()">
@@ -616,6 +614,7 @@
         document.getElementById('content-dashboard').classList.remove('d-none');
         document.getElementById('dashUserInfo').innerHTML = `<b>Nama:</b> ${appState.user.Name} <br> <b>Role:</b> ${appState.user.Role}`;
         if(app.loadDashboardStats) app.loadDashboardStats();
+        if(app.loadReportPeriods) app.loadReportPeriods();
       } else if (viewId === 'scan') {
         document.getElementById('content-scan').classList.remove('d-none');
         initScanner();
@@ -1286,6 +1285,57 @@ app.downloadMatrixReport = async () => {
       }
     };
 
+    // --- FITUR PERIODE LAPORAN OTOMATIS ---
+    app.loadReportPeriods = async () => {
+      try {
+        const res = await apiCall('reports/periods', null, 'GET');
+        const monthSelect = document.getElementById('reportMonth');
+        const yearSelect = document.getElementById('reportYear');
+        
+        monthSelect.innerHTML = '';
+        yearSelect.innerHTML = '';
+        
+        const namaBulan = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+        // Jika database ada isinya
+        if (res.ok && res.data.length > 0) {
+          // 1. Kumpulkan daftar Tahun yang unik
+          const years = [...new Set(res.data.map(item => parseInt(item.year)))];
+          
+          years.forEach(y => {
+            yearSelect.innerHTML += `<option value="${y}">${y}</option>`;
+          });
+
+          // 2. Fungsi untuk memfilter bulan berdasarkan tahun yang dipilih
+          const updateMonths = () => {
+            const selectedYear = parseInt(yearSelect.value);
+            // Ambil bulan yang hanya ada di tahun yang dipilih
+            const availableMonths = res.data.filter(item => parseInt(item.year) === selectedYear).map(item => parseInt(item.month));
+            
+            monthSelect.innerHTML = '';
+            availableMonths.forEach(m => {
+              monthSelect.innerHTML += `<option value="${m}">${namaBulan[m]}</option>`;
+            });
+          };
+
+          // Pasang pelatuk (trigger) agar saat Admin ganti Tahun, opsi Bulan ikut berubah
+          yearSelect.addEventListener('change', updateMonths);
+          
+          // Jalankan pengisian bulan untuk pertama kalinya
+          updateMonths();
+        } else {
+          // Jika database masih KOSONG sama sekali, default ke bulan ini
+          const now = new Date();
+          const m = now.getMonth() + 1;
+          const y = now.getFullYear();
+          monthSelect.innerHTML = `<option value="${m}">${namaBulan[m]}</option>`;
+          yearSelect.innerHTML = `<option value="${y}">${y}</option>`;
+        }
+      } catch (e) {
+        console.error("Gagal memuat periode laporan", e);
+      }
+    };
+    
     app.cleanupDatabase = async () => {
       const confirm = await Swal.fire({
         title: 'Bersihkan Database?',
@@ -1586,6 +1636,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

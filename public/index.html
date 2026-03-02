@@ -1187,8 +1187,6 @@ app.downloadMatrixReport = async () => {
       for (let i = 1; i <= 31; i++) headerRow.push({ text: String(i), style: 'tableHeader' });
       tableBody.push(headerRow);
 
-      // Gunakan urutan asli, JANGAN di-sort secara alfabetis
-      const jamSlots = jamSlotsSequence; 
       // Dapatkan tanggal hari ini untuk membedakan "Hari Berlalu" vs "Masa Depan"
       const now = new Date();
       const curYear = now.getFullYear();
@@ -1265,19 +1263,19 @@ app.downloadMatrixReport = async () => {
     };
 
     // Teknik Hidden Iframe agar tidak buka tab baru
-        pdfMake.createPdf(docDefinition).getBlob((blob) => {
-          const url = URL.createObjectURL(blob);
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = url;
-          document.body.appendChild(iframe);
-          iframe.onload = () => {
-            setTimeout(() => {
-              iframe.contentWindow.focus();
-              iframe.contentWindow.print();
-            }, 500); 
-          };
-        });
+    pdfMake.createPdf(docDefinition).getBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        }, 500); 
+      };
+    });
     
   } catch (err) {
     UI.alert('Error', err.message);
@@ -1671,7 +1669,6 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
-
 
 
 

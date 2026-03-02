@@ -96,7 +96,8 @@ app.put("/api/schedules", authenticateToken, async (req, res) => {
 // SCAN & LOGS
 // ==========================================
 app.post("/api/scan", authenticateToken, async (req, res) => {
-  const { barcode, lat, lng } = req.body;
+  // Tambahkan penangkapan variabel "method" dari frontend
+  const { barcode, lat, lng, method } = req.body; 
   try {
     const cpRes = await pool.query("SELECT * FROM Checkpoints WHERE BarcodeValue = $1 AND Active = TRUE", [barcode]);
     if (cpRes.rows.length === 0) return res.status(404).json({ ok: false, error: "Checkpoint tidak ditemukan!" });
@@ -110,9 +111,10 @@ app.post("/api/scan", authenticateToken, async (req, res) => {
       }
     }
 
+    // Tambahkan ScanMethod ke perintah INSERT
     await pool.query(
-      "INSERT INTO PatrolLogs (CheckpointId, UserId, Username, BarcodeValue, Timestamp, Result) VALUES ($1, $2, $3, $4, NOW(), $5)",
-      [cp.checkpointid, req.user.userId, req.user.username, barcode, 'OK']
+      "INSERT INTO PatrolLogs (CheckpointId, UserId, Username, BarcodeValue, Timestamp, Result, ScanMethod) VALUES ($1, $2, $3, $4, NOW(), $5, $6)",
+      [cp.checkpointid, req.user.userId, req.user.username, barcode, 'OK', method || 'Tidak Diketahui']
     );
     res.json({ ok: true, data: { locationName: cp.name } });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
@@ -313,6 +315,7 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
         c.Name as "lokasi",
         l.BarcodeValue as "barcodevalue",
         l.Username as "username",
+        l.ScanMethod as "metode",
         l.Result as "result",
         l.LogId as "logid"
       FROM PatrolLogs l
@@ -403,6 +406,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 module.exports = app;
+
 
 
 

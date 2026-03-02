@@ -296,6 +296,26 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
   }
 });
 
+// ==========================================
+// MENGAMBIL PERIODE BULAN & TAHUN YANG TERSEDIA
+// ==========================================
+app.get("/api/reports/periods", authenticateToken, async (req, res) => {
+  try {
+    // Mencari kombinasi Bulan dan Tahun yang unik dari seluruh data log
+    const query = `
+      SELECT DISTINCT 
+        EXTRACT(MONTH FROM Timestamp + INTERVAL '7 hours') as month, 
+        EXTRACT(YEAR FROM Timestamp + INTERVAL '7 hours') as year 
+      FROM PatrolLogs 
+      ORDER BY year DESC, month DESC
+    `;
+    const result = await pool.query(query);
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { 
+    res.status(500).json({ ok: false, error: err.message }); 
+  }
+});
+
 
 // ==========================================
 // GET PATROL LOGS (ROLE-BASED & NAMA LOKASI)
@@ -422,6 +442,7 @@ app.get(/^\/(?!api).*/, (req, res) => {
 });
 
 module.exports = app;
+
 
 
 

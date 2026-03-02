@@ -291,15 +291,15 @@
                       <p class="text-primary mt-2 mb-0 fw-bold blink-text"><i class="bi bi-upc-scan"></i> Arahkan kamera
                         ke QR Code Checkpoint...</p>
                     </div>
+                    
+                    <button id="btnNfcScan" class="btn btn-dark btn-lg w-100 fw-bold shadow-sm mb-3"
+                      onclick="app.startNfcScan()">
+                      <i class="bi bi-broadcast me-2"></i> Tap Tag NFC
+                    </button>
 
                     <button id="btnStartScan" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm mb-3"
                       onclick="app.startLiveScanner()">
                       <i class="bi bi-camera-video-fill me-2"></i> Buka Kamera & Scan
-                    </button>
-
-                    <button id="btnNfcScan" class="btn btn-dark btn-lg w-100 fw-bold shadow-sm mb-3"
-                      onclick="app.startNfcScan()">
-                      <i class="bi bi-broadcast me-2"></i> Tap Tag NFC
                     </button>
 
                     <button id="btnStopScan" class="btn btn-danger btn-lg w-100 fw-bold shadow-sm mb-3 d-none"
@@ -1546,6 +1546,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

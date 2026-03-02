@@ -1501,10 +1501,43 @@ app.downloadMatrixReport = async () => {
         UI.alert('Gagal Menulis NFC', error.message);
       }
     };
+
+    // --- PENGATURAN SERVICE WORKER (AUTO-UPDATE PWA) ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+          
+          // Deteksi jika ada update kode baru di server
+          registration.onupdatefound = () => {
+            const installingWorker = registration.installing;
+            if (installingWorker == null) return;
+
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed') {
+                if (navigator.serviceWorker.controller) {
+                  // Ada update baru yang siap! 
+                  console.log('Update baru tersedia. Me-refresh aplikasi...');
+                  
+                  // Munculkan toast singkat, lalu otomatis refresh halaman
+                  UI.toast('Memperbarui aplikasi ke versi terbaru...', 'info');
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1500); // Jeda 1.5 detik agar user sempat membaca
+                }
+              }
+            };
+          };
+          
+        }).catch(err => {
+          console.log('ServiceWorker gagal didaftarkan: ', err);
+        });
+      });
+    }
   </script>
 </body>
 
 </html>
+
 
 
 

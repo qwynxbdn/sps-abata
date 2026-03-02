@@ -401,11 +401,28 @@ app.delete("/api/patrollogs/:id", authenticateToken, async (req, res) => {
 });
 
 // --- STATIC SERVING ---
-// (Dibiarkan simpel, pengaturan Anti-Cache akan diurus oleh vercel.json)
-app.use(express.static(path.join(__dirname, "public")));
-app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+// ==========================================
+// STATIC SERVING & ANTI-CACHE PWA
+// ==========================================
+app.use(express.static(path.join(__dirname, "public"), {
+  setHeaders: (res, filePath) => {
+    // Beri perlindungan anti-cache HANYA untuk file HTML dan Service Worker
+    if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
+
+// Rute fallback agar saat user refresh halaman /scan atau /dashboard tidak error 404
+app.get(/^\/(?!api).*/, (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 module.exports = app;
+
 
 
 

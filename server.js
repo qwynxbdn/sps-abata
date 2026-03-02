@@ -326,9 +326,14 @@ app.get("/api/reports/periods", authenticateToken, async (req, res) => {
 // ==========================================
 // GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER)
 // ==========================================
+// ==========================================
+// GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER)
+// ==========================================
+// ==========================================
+// GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER)
+// ==========================================
 app.get("/api/patrollogs", authenticateToken, async (req, res) => {
   try {
-    // Gunakan WHERE 1=1 agar kita bisa menambahkan filter AND di bawahnya dengan mudah
     let query = `
       SELECT 
         l.Timestamp as "timestamp",
@@ -348,22 +353,19 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
 
     // 1. FILTER ROLE / USERNAME
     if (!req.user.permissions.includes('all')) {
-      // Jika Guard: Paksa hanya melihat miliknya sendiri
       query += ` AND LOWER(l.Username) = LOWER($${paramIndex++}) `;
       const uname = req.user.username || req.user.Username || req.user.name;
       params.push(uname);
     } else if (req.query.username) {
-      // Jika Admin dan memfilter username dari kotak pilihan
       query += ` AND LOWER(l.Username) = LOWER($${paramIndex++}) `;
       params.push(req.query.username);
     }
 
-    // 2. FILTER BULAN & TAHUN (Wajib ada default dari frontend)
-    if (req.query.month && req.query.year) {
-      query += ` AND EXTRACT(MONTH FROM l.Timestamp + INTERVAL '7 hours') = $${paramIndex++} `;
-      params.push(parseInt(req.query.month));
-      query += ` AND EXTRACT(YEAR FROM l.Timestamp + INTERVAL '7 hours') = $${paramIndex++} `;
-      params.push(parseInt(req.query.year));
+    // 2. FILTER TANGGAL (BARU)
+    // Mencocokkan tanggal kalender secara presisi
+    if (req.query.date) {
+      query += ` AND (l.Timestamp + INTERVAL '7 hours')::date = $${paramIndex++} `;
+      params.push(req.query.date);
     }
 
     // 3. FILTER LOKASI
@@ -372,7 +374,6 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
       params.push(req.query.location);
     }
 
-    // Urutkan dari terbaru dan beri batas max 1000 agar tidak overload
     query += ` ORDER BY l.Timestamp DESC LIMIT 1000`;
 
     const result = await pool.query(query, params);
@@ -442,6 +443,7 @@ app.get(/^\/(?!api).*/, (req, res) => {
 });
 
 module.exports = app;
+
 
 
 

@@ -774,16 +774,16 @@
 
       try {
         // === PASANG PARAMETER PENCARIAN KE URL API ===
+        // === PASANG PARAMETER PENCARIAN KE URL API ===
         let apiUrl = tableName.toLowerCase();
         
         if (tableName === 'PatrolLogs' && app.filtersRendered) {
-          const m = document.getElementById('fLogMonth').value;
-          const y = document.getElementById('fLogYear').value;
+          const d = document.getElementById('fLogDate').value;
           const loc = document.getElementById('fLogLoc').value;
           const usr = document.getElementById('fLogUser') ? document.getElementById('fLogUser').value : '';
           
-          // Gabungkan ke URL tujuan
-          apiUrl += `?month=${m}&year=${y}&location=${encodeURIComponent(loc)}&username=${encodeURIComponent(usr)}`;
+          // Gabungkan ke URL tujuan dengan format parameter baru (?date=...)
+          apiUrl += `?date=${d}&location=${encodeURIComponent(loc)}&username=${encodeURIComponent(usr)}`;
         }
 
         const res = await apiCall(apiUrl, null, 'GET');
@@ -1441,21 +1441,21 @@ app.downloadMatrixReport = async () => {
     // --- FITUR FILTER PATROL LOGS ---
     app.filtersRendered = false;
 
+    app.renderLogFilters = async () => {// --- FITUR FILTER PATROL LOGS ---
+    app.filtersRendered = false;
+
     app.renderLogFilters = async () => {
       const container = document.getElementById('filterLogsContainer');
-      // Hanya tampilkan jika sedang membuka menu PatrolLogs
       if (appState.currentTableType !== 'PatrolLogs') {
         container.classList.add('d-none');
         return;
       }
       container.classList.remove('d-none');
-
-      // Hindari me-render ulang agar pilihan user tidak ter-reset
       if (app.filtersRendered) return; 
 
+      // Dapatkan tanggal hari ini (WIB) dalam format YYYY-MM-DD untuk Default
       const now = new Date();
-      const curMonth = now.getMonth() + 1; // Default Bulan Berjalan
-      const curYear = now.getFullYear();   // Default Tahun Berjalan
+      const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
 
       // 1. Ambil data Checkpoints untuk dropdown Lokasi
       let cpOptions = '<option value="">Semua Lokasi</option>';
@@ -1483,30 +1483,13 @@ app.downloadMatrixReport = async () => {
         `;
       }
 
-      // 3. Suntikkan HTML ke dalam Layar
+      // 3. Suntikkan HTML (Kotak Tanggal Kalender, Lokasi, dan Petugas)
       document.getElementById('filterLogsBody').innerHTML = `
-        <div class="col-md-3 mb-2">
-          <label class="small text-muted fw-bold">Bulan</label>
-          <select id="fLogMonth" class="form-select form-select-sm" onchange="loadDataTable('PatrolLogs')">
-            <option value="1" ${curMonth === 1 ? 'selected' : ''}>Januari</option>
-            <option value="2" ${curMonth === 2 ? 'selected' : ''}>Februari</option>
-            <option value="3" ${curMonth === 3 ? 'selected' : ''}>Maret</option>
-            <option value="4" ${curMonth === 4 ? 'selected' : ''}>April</option>
-            <option value="5" ${curMonth === 5 ? 'selected' : ''}>Mei</option>
-            <option value="6" ${curMonth === 6 ? 'selected' : ''}>Juni</option>
-            <option value="7" ${curMonth === 7 ? 'selected' : ''}>Juli</option>
-            <option value="8" ${curMonth === 8 ? 'selected' : ''}>Agustus</option>
-            <option value="9" ${curMonth === 9 ? 'selected' : ''}>September</option>
-            <option value="10" ${curMonth === 10 ? 'selected' : ''}>Oktober</option>
-            <option value="11" ${curMonth === 11 ? 'selected' : ''}>November</option>
-            <option value="12" ${curMonth === 12 ? 'selected' : ''}>Desember</option>
-          </select>
+        <div class="col-md-4 mb-2">
+          <label class="small text-muted fw-bold">Tanggal</label>
+          <input type="date" id="fLogDate" class="form-control form-control-sm" value="${localDate}" onchange="loadDataTable('PatrolLogs')">
         </div>
-        <div class="col-md-2 mb-2">
-          <label class="small text-muted fw-bold">Tahun</label>
-          <input type="number" id="fLogYear" class="form-control form-control-sm" value="${curYear}" onchange="loadDataTable('PatrolLogs')">
-        </div>
-        <div class="col-md-3 mb-2">
+        <div class="col-md-4 mb-2">
           <label class="small text-muted fw-bold">Lokasi Area</label>
           <select id="fLogLoc" class="form-select form-select-sm" onchange="loadDataTable('PatrolLogs')">
             ${cpOptions}
@@ -1636,6 +1619,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

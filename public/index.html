@@ -653,7 +653,8 @@
             async (decodedText) => {
               app.stopLiveScanner();
               UI.toast('QR Terbaca! Sedang memproses...', 'info');
-              await processScan(decodedText);
+              // Tambahkan label 'Kamera'
+              await processScan(decodedText, 'Kamera');
             },
             (errorMessage) => { /* Abaikan pesan pencarian QR frame-by-frame */ }
           );
@@ -690,17 +691,19 @@
 
     app.submitManualScan = async () => {
       const val = document.getElementById('manualBarcode').value;
-      if (val) { await processScan(val); document.getElementById('manualBarcode').value = ''; }
+      if (val) { await processScan(val, 'Manual'); document.getElementById('manualBarcode').value = ''; }
     };
 
-    async function processScan(barcode) {
+    // Tambahkan parameter scanMethod
+    async function processScan(barcode, scanMethod = 'Tidak Diketahui') {
       if (!appState.gps.lat) return UI.alert('GPS Required', 'Sinyal GPS tidak ditemukan.');
       UI.showLoader();
       try {
-        const payload = { barcode: barcode, lat: appState.gps.lat, lng: appState.gps.lng, deviceInfo: navigator.userAgent };
+        // Masukkan method ke dalam payload
+        const payload = { barcode: barcode, lat: appState.gps.lat, lng: appState.gps.lng, deviceInfo: navigator.userAgent, method: scanMethod };
         const res = await apiCall('scan', payload, 'POST');
 
-        if (res.ok) Swal.fire({ title: 'BERHASIL', text: `Scan diterima. Jarak: ${res.data.distance} meter`, icon: 'success' });
+        if (res.ok) Swal.fire({ title: 'BERHASIL', text: `Scan diterima. Jarak: ${res.data.distance || '?'} meter`, icon: 'success' });
       } catch (e) {
         Swal.fire({ title: 'DITOLAK', text: e.message, icon: 'error' });
       }
@@ -802,7 +805,16 @@
               if (val === 'false' || val === 'Inaktif') val = '<span class="badge bg-danger">Inaktif</span>';
               
               // Beri format khusus jika teksnya 'OK' atau 'ABSENT'
+              // Beri format khusus jika teksnya 'OK'
               if (val === 'OK') val = '<span class="badge bg-primary">OK</span>';
+              
+              // FORMAT BADGE UNTUK METODE SCAN
+              if (h.toLowerCase() === 'metode') {
+                if (val === 'Kamera') val = '<span class="badge bg-success"><i class="bi bi-camera"></i> Kamera</span>';
+                else if (val === 'NFC') val = '<span class="badge bg-info text-dark"><i class="bi bi-broadcast"></i> NFC</span>';
+                else if (val === 'Manual') val = '<span class="badge bg-warning text-dark"><i class="bi bi-keyboard"></i> Manual</span>';
+                else val = `<span class="badge bg-secondary">${val}</span>`;
+              };
               
               bodyHTML += `<td>${val}</td>`;
             }
@@ -1454,11 +1466,9 @@ app.downloadMatrixReport = async () => {
               document.getElementById('btnNfcScan').classList.remove('btn-warning');
               
               UI.toast('NFC Terbaca! Memproses...', 'success');
-              
-              // Lempar data ke fungsi pemroses scan yang sama dengan QR Code!
-              processScan(textData);
-              return; 
-            }
+              // Tambahkan label 'NFC'
+              processScan(textData, 'NFC');
+              return;
           }
           UI.alert('NFC Kosong', 'Tag NFC ini belum diisi data Checkpoint.');
         });
@@ -1490,6 +1500,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

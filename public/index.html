@@ -1466,15 +1466,20 @@ app.downloadMatrixReport = async () => {
               document.getElementById('btnNfcScan').classList.remove('btn-warning');
               
               UI.toast('NFC Terbaca! Memproses...', 'success');
+              
               // Tambahkan label 'NFC'
               processScan(textData, 'NFC');
               return;
-          }
+            } // <-- Penutup blok IF
+          } // <-- Penutup blok FOR (Bagian ini yang sebelumnya hilang)
+          
+          // Jika loop selesai tapi tidak ada teks yang ditemukan
           UI.alert('NFC Kosong', 'Tag NFC ini belum diisi data Checkpoint.');
         });
       } catch (error) {
         UI.alert('Sensor NFC Error', error.message);
         document.getElementById('btnNfcScan').innerHTML = '<i class="bi bi-broadcast me-2"></i> Tap Tag NFC';
+        document.getElementById('btnNfcScan').classList.remove('btn-warning');
       }
     };
 
@@ -1500,6 +1505,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

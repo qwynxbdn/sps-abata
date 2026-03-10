@@ -900,6 +900,7 @@ app.openDataModal = () => {
 };
 
    // --- FORM USERS ---
+    // --- FORM USERS ---
     app.editUser = (index) => buildUserForm(appState.currentTableData[index]);
     function buildUserForm(data = null) {
       document.getElementById('dataModalTitle').innerText = data ? 'Edit User' : 'Tambah User';
@@ -910,7 +911,9 @@ app.openDataModal = () => {
       const uname = data ? (data.username || data.Username) : '';
       const role = data ? (data.role || data.Role) : '';
       const isActive = data ? (data.isactive || data.IsActive) : true;
-      const guardType = data ? (data.tipe || data.Tipe || data.GuardType) : 'Inhouse'; 
+      
+      // Ambil tipe guard, default ke Inhouse jika kosong
+      const guardType = data ? (data.tipe || data.Tipe || data.GuardType || data.guardtype) : 'Inhouse'; 
 
       document.getElementById('dataModalBody').innerHTML = `
         <form id="userForm">
@@ -943,7 +946,7 @@ app.openDataModal = () => {
           Username: document.getElementById('f_username').value,
           Password: document.getElementById('f_pass').value,
           Role: document.getElementById('f_role').value,
-          GuardType: document.getElementById('f_gtype').value, // Menangkap Inhouse/Outsource dari Dropdown
+          GuardType: document.getElementById('f_gtype').value, // Mengirim pilihan ke server
           IsActive: document.getElementById('f_active').value === 'true'
         };
         UI.showLoader();
@@ -1682,6 +1685,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

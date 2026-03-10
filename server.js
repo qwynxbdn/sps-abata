@@ -65,19 +65,11 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// SCHEDULES
-// ==========================================
-// ==========================================
-// SCHEDULES (PENGATURAN DURASI & JAM MULAI)
-// ==========================================
-// ==========================================
 // PENGATURAN JADWAL GLOBAL (MASTER SETTING)
 // ==========================================
 app.get("/api/schedules", authenticateToken, async (req, res) => {
   try {
-    // Ambil 1 baris pengaturan saja
     const result = await pool.query("SELECT StartHour, IntervalHours FROM Schedules LIMIT 1");
-    // Jika tabel kosong, kembalikan default 7 dan 2
     const data = result.rows.length > 0 ? result.rows[0] : { starthour: 7, intervalhours: 2 };
     res.json({ ok: true, data: data });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
@@ -86,7 +78,6 @@ app.get("/api/schedules", authenticateToken, async (req, res) => {
 app.put("/api/schedules", authenticateToken, async (req, res) => {
   const { StartHour, IntervalHours } = req.body;
   try {
-    // Karena ini setting global, kita update semua baris (yang mana hanya ada 1 baris)
     await pool.query("UPDATE Schedules SET StartHour=$1, IntervalHours=$2", [StartHour, IntervalHours]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
@@ -96,7 +87,6 @@ app.put("/api/schedules", authenticateToken, async (req, res) => {
 // SCAN & LOGS
 // ==========================================
 app.post("/api/scan", authenticateToken, async (req, res) => {
-  // Tambahkan penangkapan variabel "method" dari frontend
   const { barcode, lat, lng, method } = req.body; 
   try {
     const cpRes = await pool.query("SELECT * FROM Checkpoints WHERE BarcodeValue = $1 AND Active = TRUE", [barcode]);
@@ -111,7 +101,6 @@ app.post("/api/scan", authenticateToken, async (req, res) => {
       }
     }
 
-    // Tambahkan ScanMethod ke perintah INSERT
     await pool.query(
       "INSERT INTO PatrolLogs (CheckpointId, UserId, Username, BarcodeValue, Timestamp, Result, ScanMethod) VALUES ($1, $2, $3, $4, NOW(), $5, $6)",
       [cp.checkpointid, req.user.userId, req.user.username, barcode, 'OK', method || 'Tidak Diketahui']
@@ -119,7 +108,6 @@ app.post("/api/scan", authenticateToken, async (req, res) => {
     res.json({ ok: true, data: { locationName: cp.name } });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
-
 
 // ==========================================
 // REPORTS & MATRIX (12 SLOTS / 24H) - FIXED TIMEZONE
@@ -139,6 +127,7 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
     if (interval < 1) interval = 1; 
     const totalSteps = Math.floor(24 / interval);
 
+    // Kueri baru yang menangkap jumlah scan_inhouse dan scan_outsource (menggunakan huruf kecil u.guardtype untuk keamanan PG)
     const query = `
       WITH RECURSIVE hours AS (
           SELECT $3::int AS start_hour, 1 AS step
@@ -157,8 +146,8 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
         LPAD(h.start_hour::text, 2, '0') || ':00' AS jam_slot, 
         c.Name AS lokasi, 
         STRING_AGG(DISTINCT UPPER(LEFT(l.Username, 3)), ' / ') AS inisial,
-        COUNT(CASE WHEN u.GuardType = 'Inhouse' THEN 1 END) as scan_inhouse,
-        COUNT(CASE WHEN u.GuardType = 'Outsource' THEN 1 END) as scan_outsource
+        COUNT(CASE WHEN u.guardtype = 'Inhouse' THEN 1 END) as scan_inhouse,
+        COUNT(CASE WHEN u.guardtype = 'Outsource' THEN 1 END) as scan_outsource
       FROM days d 
       CROSS JOIN hours h 
       CROSS JOIN Checkpoints c
@@ -172,101 +161,6 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
     `;
     const result = await pool.query(query, [parseInt(month), parseInt(year), startHour, interval, totalSteps]);
     res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-// ==========================================
-// DATA MANAGEMENT (USERS & CHECKPOINTS)
-// ==========================================
-// ==========================================
-// DATA MANAGEMENT (USERS & CHECKPOINTS)
-// ==========================================
-app.get("/api/users", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT UserId as \"UserId\", Name as \"Name\", Username as \"Username\", Role as \"Role\", GuardType as \"Tipe\", IsActive as \"IsActive\" FROM Users ORDER BY Name ASC");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.post("/api/users", authenticateToken, async (req, res) => {
-  const { Name, Username, Password, Role, IsActive, GuardType } = req.body;
-  try {
-    const hash = await bcrypt.hash(Password, 10);
-    await pool.query("INSERT INTO Users (Name, Username, PasswordHash, Role, IsActive, GuardType) VALUES ($1, $2, $3, $4, $5, $6)", [Name, Username, hash, Role, IsActive, GuardType || 'Inhouse']);
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.put("/api/users", authenticateToken, async (req, res) => {
-  const { UserId, Name, Password, Role, IsActive, GuardType } = req.body;
-  try {
-    if (Password && Password.trim() !== "") {
-      const hash = await bcrypt.hash(Password, 10);
-      await pool.query("UPDATE Users SET Name=$1, PasswordHash=$2, Role=$3, IsActive=$4, GuardType=$5 WHERE UserId=$6", [Name, hash, Role, IsActive, GuardType || 'Inhouse', UserId]);
-    } else {
-      await pool.query("UPDATE Users SET Name=$1, Role=$2, IsActive=$3, GuardType=$4 WHERE UserId=$5", [Name, Role, IsActive, GuardType || 'Inhouse', UserId]);
-    }
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.get("/api/checkpoints", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Latitude as \"Latitude\", Longitude as \"Longitude\", RadiusMeters as \"RadiusMeters\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
-    res.json({ ok: true, data: result.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.post("/api/checkpoints", authenticateToken, async (req, res) => {
-  const { Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
-  try {
-    await pool.query("INSERT INTO Checkpoints (Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active) VALUES ($1, $2, $3, $4, $5, $6)", [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active]);
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-app.put("/api/checkpoints", authenticateToken, async (req, res) => {
-  const { CheckpointId, Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
-  try {
-    await pool.query("UPDATE Checkpoints SET Name=$1, BarcodeValue=$2, Latitude=$3, Longitude=$4, RadiusMeters=$5, Active=$6 WHERE CheckpointId=$7", [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active, CheckpointId]);
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-// ==========================================
-// SYSTEM & STORAGE MAINTENANCE
-// ==========================================
-
-// Endpoint untuk cek ukuran database
-app.get("/api/system/status", authenticateToken, async (req, res) => {
-  try {
-    // Hanya Admin yang boleh mengakses
-    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
-
-    // Fungsi PostgreSQL bawaan untuk mengecek ukuran DB
-    const dbSizeRes = await pool.query("SELECT pg_size_pretty(pg_database_size(current_database())) as size_text, pg_database_size(current_database()) as size_bytes");
-    const logsRes = await pool.query("SELECT COUNT(*) FROM PatrolLogs");
-
-    res.json({ 
-      ok: true, 
-      data: {
-        sizeText: dbSizeRes.rows[0].size_text,
-        sizeBytes: dbSizeRes.rows[0].size_bytes,
-        totalLogs: parseInt(logsRes.rows[0].count)
-      } 
-    });
-  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
-});
-
-// Endpoint untuk hapus data lebih dari 3 bulan
-app.post("/api/system/cleanup", authenticateToken, async (req, res) => {
-  try {
-    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
-
-    // Hapus data PatrolLogs yang usianya lebih tua dari 3 bulan
-    const deleteRes = await pool.query("DELETE FROM PatrolLogs WHERE Timestamp < NOW() - INTERVAL '3 months'");
-    
-    res.json({ ok: true, deletedRows: deleteRes.rowCount });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
@@ -301,7 +195,6 @@ app.get("/api/reports/monthly", authenticateToken, async (req, res) => {
 // ==========================================
 app.get("/api/reports/periods", authenticateToken, async (req, res) => {
   try {
-    // Mencari kombinasi Bulan dan Tahun yang unik dari seluruh data log
     const query = `
       SELECT DISTINCT 
         EXTRACT(MONTH FROM Timestamp + INTERVAL '7 hours') as month, 
@@ -316,21 +209,8 @@ app.get("/api/reports/periods", authenticateToken, async (req, res) => {
   }
 });
 
-
 // ==========================================
-// GET PATROL LOGS (ROLE-BASED & NAMA LOKASI)
-// ==========================================
-// ==========================================
-// GET PATROL LOGS (ROLE-BASED & NAMA LOKASI)
-// ==========================================
-// ==========================================
-// GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER)
-// ==========================================
-// ==========================================
-// GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER)
-// ==========================================
-// ==========================================
-// GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER)
+// GET PATROL LOGS (ROLE-BASED, NAMA LOKASI & FILTER TANGGAL)
 // ==========================================
 app.get("/api/patrollogs", authenticateToken, async (req, res) => {
   try {
@@ -361,8 +241,7 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
       params.push(req.query.username);
     }
 
-    // 2. FILTER TANGGAL (BARU)
-    // Mencocokkan tanggal kalender secara presisi
+    // 2. FILTER TANGGAL
     if (req.query.date) {
       query += ` AND (l.Timestamp + INTERVAL '7 hours')::date = $${paramIndex++} `;
       params.push(req.query.date);
@@ -384,23 +263,74 @@ app.get("/api/patrollogs", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
+// DATA MANAGEMENT (USERS & CHECKPOINTS)
+// ==========================================
+app.get("/api/users", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT UserId as \"UserId\", Name as \"Name\", Username as \"Username\", Role as \"Role\", guardtype as \"GuardType\", IsActive as \"IsActive\" FROM Users ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post("/api/users", authenticateToken, async (req, res) => {
+  const { Name, Username, Password, Role, IsActive, GuardType } = req.body;
+  try {
+    const hash = await bcrypt.hash(Password, 10);
+    await pool.query("INSERT INTO Users (Name, Username, PasswordHash, Role, IsActive, guardtype) VALUES ($1, $2, $3, $4, $5, $6)", [Name, Username, hash, Role, IsActive, GuardType || 'Inhouse']);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.put("/api/users", authenticateToken, async (req, res) => {
+  const { UserId, Name, Password, Role, IsActive, GuardType } = req.body;
+  try {
+    if (Password && Password.trim() !== "") {
+      const hash = await bcrypt.hash(Password, 10);
+      await pool.query("UPDATE Users SET Name=$1, PasswordHash=$2, Role=$3, IsActive=$4, guardtype=$5 WHERE UserId=$6", [Name, hash, Role, IsActive, GuardType || 'Inhouse', UserId]);
+    } else {
+      await pool.query("UPDATE Users SET Name=$1, Role=$2, IsActive=$3, guardtype=$4 WHERE UserId=$5", [Name, Role, IsActive, GuardType || 'Inhouse', UserId]);
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get("/api/checkpoints", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT CheckpointId as \"CheckpointId\", Name as \"Name\", BarcodeValue as \"BarcodeValue\", Latitude as \"Latitude\", Longitude as \"Longitude\", RadiusMeters as \"RadiusMeters\", Active as \"Active\" FROM Checkpoints ORDER BY Name ASC");
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post("/api/checkpoints", authenticateToken, async (req, res) => {
+  const { Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  try {
+    await pool.query("INSERT INTO Checkpoints (Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active) VALUES ($1, $2, $3, $4, $5, $6)", [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.put("/api/checkpoints", authenticateToken, async (req, res) => {
+  const { CheckpointId, Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active } = req.body;
+  try {
+    await pool.query("UPDATE Checkpoints SET Name=$1, BarcodeValue=$2, Latitude=$3, Longitude=$4, RadiusMeters=$5, Active=$6 WHERE CheckpointId=$7", [Name, BarcodeValue, Latitude, Longitude, RadiusMeters, Active, CheckpointId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// ==========================================
 // API DELETE (USERS, CHECKPOINTS, LOGS)
 // ==========================================
-
-// 1. Hapus User
 app.delete("/api/users/:id", authenticateToken, async (req, res) => {
   try {
     if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
     await pool.query("DELETE FROM Users WHERE UserId = $1", [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
-    // 23503 adalah kode error PostgreSQL untuk Foreign Key Violation
     if (err.code === '23503') return res.status(400).json({ ok: false, error: "Gagal: User ini memiliki riwayat scan. Solusi: Gunakan tombol Edit dan ubah status menjadi 'Non-Aktif'." });
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// 2. Hapus Checkpoint
 app.delete("/api/checkpoints/:id", authenticateToken, async (req, res) => {
   try {
     if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
@@ -412,7 +342,6 @@ app.delete("/api/checkpoints/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// 3. Hapus Patrol Log (Hanya Admin)
 app.delete("/api/patrollogs/:id", authenticateToken, async (req, res) => {
   try {
     if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak. Hanya Admin yang dapat menghapus riwayat." });
@@ -421,13 +350,39 @@ app.delete("/api/patrollogs/:id", authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// --- STATIC SERVING ---
+// ==========================================
+// SYSTEM & STORAGE MAINTENANCE
+// ==========================================
+app.get("/api/system/status", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
+    const dbSizeRes = await pool.query("SELECT pg_size_pretty(pg_database_size(current_database())) as size_text, pg_database_size(current_database()) as size_bytes");
+    const logsRes = await pool.query("SELECT COUNT(*) FROM PatrolLogs");
+
+    res.json({ 
+      ok: true, 
+      data: {
+        sizeText: dbSizeRes.rows[0].size_text,
+        sizeBytes: dbSizeRes.rows[0].size_bytes,
+        totalLogs: parseInt(logsRes.rows[0].count)
+      } 
+    });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post("/api/system/cleanup", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.permissions.includes('all')) return res.status(403).json({ ok: false, error: "Akses ditolak" });
+    const deleteRes = await pool.query("DELETE FROM PatrolLogs WHERE Timestamp < NOW() - INTERVAL '3 months'");
+    res.json({ ok: true, deletedRows: deleteRes.rowCount });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 // ==========================================
 // STATIC SERVING & ANTI-CACHE PWA
 // ==========================================
 app.use(express.static(path.join(__dirname, "public"), {
   setHeaders: (res, filePath) => {
-    // Beri perlindungan anti-cache HANYA untuk file HTML dan Service Worker
     if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
@@ -436,29 +391,9 @@ app.use(express.static(path.join(__dirname, "public"), {
   }
 }));
 
-// Rute fallback agar saat user refresh halaman /scan atau /dashboard tidak error 404
 app.get(/^\/(?!api).*/, (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 module.exports = app;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

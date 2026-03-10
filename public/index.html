@@ -899,8 +899,7 @@ app.openDataModal = () => {
   else if (appState.currentTableType === 'Checkpoints') buildCheckpointForm(); // Baris ini yang memanggil form jadwal
 };
 
-    // --- FORM USERS ---
-    // --- FORM USERS ---
+   // --- FORM USERS ---
     app.editUser = (index) => buildUserForm(appState.currentTableData[index]);
     function buildUserForm(data = null) {
       document.getElementById('dataModalTitle').innerText = data ? 'Edit User' : 'Tambah User';
@@ -911,7 +910,7 @@ app.openDataModal = () => {
       const uname = data ? (data.username || data.Username) : '';
       const role = data ? (data.role || data.Role) : '';
       const isActive = data ? (data.isactive || data.IsActive) : true;
-      const guardType = data ? (data.tipe || data.Tipe || data.GuardType) : 'Inhouse'; // Data baru
+      const guardType = data ? (data.tipe || data.Tipe || data.GuardType) : 'Inhouse'; 
 
       document.getElementById('dataModalBody').innerHTML = `
         <form id="userForm">
@@ -924,10 +923,12 @@ app.openDataModal = () => {
             <option value="Supervisor" ${role === 'Supervisor' ? 'selected' : ''}>Supervisor</option>
             <option value="Admin" ${role === 'Admin' ? 'selected' : ''}>Admin</option>
           </select></div>
+          
           <div class="mb-2"><label>Tipe Guard</label><select id="f_gtype" class="form-select">
             <option value="Inhouse" ${guardType === 'Inhouse' ? 'selected' : ''}>In-House</option>
             <option value="Outsource" ${guardType === 'Outsource' ? 'selected' : ''}>Outsource</option>
           </select></div>
+          
           <div class="mb-2"><label>Status</label><select id="f_active" class="form-select">
             <option value="true" ${isActive.toString() === 'true' ? 'selected' : ''}>Aktif</option>
             <option value="false" ${isActive.toString() === 'false' ? 'selected' : ''}>Non-Aktif</option>
@@ -942,7 +943,7 @@ app.openDataModal = () => {
           Username: document.getElementById('f_username').value,
           Password: document.getElementById('f_pass').value,
           Role: document.getElementById('f_role').value,
-          GuardType: document.getElementById('f_gtype').value, // Menangkap Inhouse/Outsource
+          GuardType: document.getElementById('f_gtype').value, // Menangkap Inhouse/Outsource dari Dropdown
           IsActive: document.getElementById('f_active').value === 'true'
         };
         UI.showLoader();
@@ -1155,27 +1156,30 @@ app.downloadMatrixReport = async () => {
     if (!res.ok) throw new Error("Gagal mengambil data matrix");
 
     const groupedData = {};
-    const jamSlotsSequence = []; // Menyimpan urutan jam asli
+    const jamSlotsSequence = [];
     res.data.forEach(row => {
       if (!groupedData[row.lokasi]) groupedData[row.lokasi] = {};
       if (!groupedData[row.lokasi][row.jam_slot]) groupedData[row.lokasi][row.jam_slot] = {};
-      groupedData[row.lokasi][row.jam_slot][row.tgl] = row.inisial || "";
       
-      // Masukkan ke array jika belum ada agar urutannya persis seperti backend
+      // Simpan objek lengkap: Inisial, dan Jumlah Scan per tipe
+      groupedData[row.lokasi][row.jam_slot][row.tgl] = {
+        inisial: row.inisial || "",
+        inhouse: parseInt(row.scan_inhouse) || 0,
+        outsource: parseInt(row.scan_outsource) || 0
+      };
+      
       if (!jamSlotsSequence.includes(row.jam_slot)) {
         jamSlotsSequence.push(row.jam_slot);
       }
     });
 
-    // === A4 landscape size in pdfMake points ===
-    // A4 portrait: 595.28 x 841.89 pt, landscape: 841.89 x 595.28 pt
     const pageWidth = 841.89;
-    const pageMargins = [10, 18, 10, 18]; // kecilin margin biar lebih lega (tanpa kepotong)
+    const pageMargins = [10, 18, 10, 18]; 
     const printableWidth = pageWidth - pageMargins[0] - pageMargins[2];
 
-    const jamWidth = 34; // kecilin sedikit
+    const jamWidth = 34; 
     const dayCols = 31;
-    const dayWidth = Math.floor((printableWidth - jamWidth) / dayCols); // auto fit
+    const dayWidth = Math.floor((printableWidth - jamWidth) / dayCols); 
     const widths = [jamWidth, ...Array(dayCols).fill(dayWidth)];
 
     const content = [
@@ -1193,7 +1197,6 @@ app.downloadMatrixReport = async () => {
       for (let i = 1; i <= 31; i++) headerRow.push({ text: String(i), style: 'tableHeader' });
       tableBody.push(headerRow);
 
-      // Dapatkan tanggal hari ini untuk membedakan "Hari Berlalu" vs "Masa Depan"
       const now = new Date();
       const curYear = now.getFullYear();
       const curMonth = now.getMonth() + 1;
@@ -1202,38 +1205,42 @@ app.downloadMatrixReport = async () => {
       const reqYear = parseInt(year);
       const reqMonth = parseInt(month);
 
-      // Gunakan urutan asli, JANGAN di-sort secara alfabetis
       const jamSlots = jamSlotsSequence; 
       jamSlots.forEach(jam => {
         const row = [{ text: jam, style: 'jamCell' }];
         for (let i = 1; i <= 31; i++) {
-          const cellData = groupedData[lokasi][jam][i] || "";
+          const cellObj = groupedData[lokasi][jam][i];
+          const inisial = cellObj ? cellObj.inisial : "";
+          const inCount = cellObj ? cellObj.inhouse : 0;
+          const outCount = cellObj ? cellObj.outsource : 0;
           
           let isPastOrToday = false;
           if (reqYear < curYear) isPastOrToday = true;
           else if (reqYear === curYear && reqMonth < curMonth) isPastOrToday = true;
           else if (reqYear === curYear && reqMonth === curMonth && i <= curDay) isPastOrToday = true;
 
-          // LOGIKA WARNA CERDAS UNTUK 2 SEKOTON (IN-HOUSE & OUTSOURCE)
-          if (cellData === "") {
-            // 1. KOSONG TOTAL (Warna Merah)
-            if (isPastOrToday) {
-              row.push({ text: "X", style: 'missedCell', fillColor: '#ffe6e6' }); 
-            } else {
-              row.push({ text: "", style: 'dataCell' });
-            }
-          } else if (!cellData.includes('/')) {
-            // 2. HANYA 1 ORANG SCAN (Warna Kuning, karena tidak ada karakter ' / ' di dalam teksnya)
-            if (isPastOrToday) {
-              row.push({ text: cellData, style: 'partialCell', fillColor: '#fff3cd' }); 
-            } else {
-              row.push({ text: cellData, style: 'dataCell' }); 
-            }
+          if (inisial === "") {
+            // KOSONG TOTAL
+            if (isPastOrToday) row.push({ text: "X", style: 'missedCell', fillColor: '#ffe6e6' }); 
+            else row.push({ text: "", style: 'dataCell' });
           } else {
-            // 3. KOMPLIT (Ada 2 orang atau lebih scan, dipisah ' / ')
-            // Kita ubah ' / ' menjadi baris baru (enter) agar inisial menumpuk rapi ke bawah di kotak sempit
-            const formattedText = cellData.split(' / ').join('\n');
-            row.push({ text: formattedText, style: 'dataCell' }); 
+            // LOGIKA WARNA CERDAS
+            let bg = '#ffffff';
+            let style = 'dataCell';
+            
+            if (inCount > 0 && outCount > 0) {
+              bg = '#145c29'; // Hijau Gelap (Keduanya hadir)
+              style = 'komplitCell';
+            } else if (inCount > 0 && outCount === 0) {
+              bg = '#fff3cd'; // Kuning (Hanya Inhouse)
+              style = 'partialInhouse';
+            } else if (outCount > 0 && inCount === 0) {
+              bg = '#d4edda'; // Hijau Lembut (Hanya Outsource)
+              style = 'partialOutsource';
+            }
+            
+            const formattedText = inisial.split(' / ').join('\n');
+            row.push({ text: formattedText, style: style, fillColor: bg });
           }
         }
         tableBody.push(row);
@@ -1242,18 +1249,12 @@ app.downloadMatrixReport = async () => {
       content.push({
         table: { headerRows: 1, widths, body: tableBody },
         layout: {
-          paddingLeft: () => 0,
-          paddingRight: () => 0,
-          paddingTop: () => 1,
-          paddingBottom: () => 1,
-          hLineWidth: () => 0.4,
-          vLineWidth: () => 0.4,
-          hLineColor: () => '#444444',
-          vLineColor: () => '#444444'
+          paddingLeft: () => 0, paddingRight: () => 0,
+          paddingTop: () => 1, paddingBottom: () => 1,
+          hLineWidth: () => 0.4, vLineWidth: () => 0.4,
+          hLineColor: () => '#444444', vLineColor: () => '#444444'
         }
       });
-
-      // jarak antar lokasi diperkecil
       content.push({ text: '', margin: [0, 0, 0, 6] });
     });
 
@@ -1261,7 +1262,6 @@ app.downloadMatrixReport = async () => {
       pageOrientation: 'landscape',
       pageSize: 'A4',
       pageMargins,
-      // kalau ada kata panjang, jangan sampai melebar keluar
       defaultStyle: { fontSize: 6 },
       content,
       styles: {
@@ -1271,13 +1271,14 @@ app.downloadMatrixReport = async () => {
         tableHeader: { fontSize: 6, bold: true, fillColor: '#eeeeee', alignment: 'center' },
         jamCell: { fontSize: 6, bold: true, alignment: 'center' },
         dataCell: { fontSize: 5, alignment: 'center' },
-        // --- STYLE BARU UNTUK BOLOS & PARSIAL ---
         missedCell: { fontSize: 6, bold: true, color: '#cc0000', alignment: 'center' },
-        partialCell: { fontSize: 5, bold: true, color: '#856404', alignment: 'center' } // Teks agak kecoklatan untuk sel kuning
+        // --- STYLE WARNA GUARD ---
+        komplitCell: { fontSize: 5, bold: true, color: '#ffffff', alignment: 'center' },
+        partialInhouse: { fontSize: 5, bold: true, color: '#856404', alignment: 'center' },
+        partialOutsource: { fontSize: 5, bold: true, color: '#155724', alignment: 'center' }
       }
     };
 
-    // Teknik Hidden Iframe agar tidak buka tab baru
     pdfMake.createPdf(docDefinition).getBlob((blob) => {
       const url = URL.createObjectURL(blob);
       const iframe = document.createElement('iframe');
@@ -1292,10 +1293,7 @@ app.downloadMatrixReport = async () => {
       };
     });
     
-  } catch (err) {
-    UI.alert('Error', err.message);
-  }
-
+  } catch (err) { UI.alert('Error', err.message); }
   UI.hideLoader();
 };
 
@@ -1684,6 +1682,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

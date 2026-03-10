@@ -145,6 +145,7 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
     const totalSteps = Math.floor(24 / interval);
 
     // 2. Query untuk membuat Matrix berdasarkan konfigurasi dinamis di atas
+    // 2. Query untuk membuat Matrix berdasarkan konfigurasi dinamis di atas
     const query = `
       WITH RECURSIVE hours AS (
           SELECT $3::int AS start_hour, 1 AS step
@@ -162,15 +163,17 @@ app.get("/api/reports/matrix", authenticateToken, async (req, res) => {
         EXTRACT(DAY FROM d.date) as tgl, 
         LPAD(h.start_hour::text, 2, '0') || ':00' AS jam_slot, 
         c.Name AS lokasi, 
-        UPPER(LEFT(COALESCE(l.Username, ''), 3)) AS inisial
+        -- [KODE BARU]: Gabungkan semua inisial berbeda yang scan di jam ini, pisahkan dengan garis miring
+        STRING_AGG(DISTINCT UPPER(LEFT(l.Username, 3)), ' / ') AS inisial
       FROM days d 
       CROSS JOIN hours h 
       CROSS JOIN Checkpoints c
       LEFT JOIN PatrolLogs l ON 
         l.CheckpointId = c.CheckpointId AND 
         (l.Timestamp + INTERVAL '7 hours')::date = d.date AND
-        -- LOGIKA KETAT: Scan harus persis di jam yang sama dengan slot tabel (XX:00:00 - XX:59:59)
         EXTRACT(HOUR FROM (l.Timestamp + INTERVAL '7 hours')) = h.start_hour
+      -- [KODE BARU]: Grouping wajib ditambahkan karena kita menggunakan fungsi agregasi STRING_AGG
+      GROUP BY d.date, h.start_hour, c.Name, h.step
       ORDER BY h.step ASC, lokasi ASC, tgl ASC;
     `;
     const result = await pool.query(query, [parseInt(month), parseInt(year), startHour, interval, totalSteps]);
@@ -443,6 +446,7 @@ app.get(/^\/(?!api).*/, (req, res) => {
 });
 
 module.exports = app;
+
 
 
 

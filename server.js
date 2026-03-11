@@ -67,18 +67,21 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 // ==========================================
 // PENGATURAN JADWAL GLOBAL (MASTER SETTING)
 // ==========================================
+// ==========================================
+// PENGATURAN JADWAL GLOBAL (MASTER SETTING)
+// ==========================================
 app.get("/api/schedules", authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query("SELECT StartHour, IntervalHours FROM Schedules LIMIT 1");
-    const data = result.rows.length > 0 ? result.rows[0] : { starthour: 7, intervalhours: 2 };
+    const result = await pool.query("SELECT StartHour, IntervalHours, IsStrictLock FROM Schedules LIMIT 1");
+    const data = result.rows.length > 0 ? result.rows[0] : { starthour: 7, intervalhours: 2, isstrictlock: true };
     res.json({ ok: true, data: data });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
 app.put("/api/schedules", authenticateToken, async (req, res) => {
-  const { StartHour, IntervalHours } = req.body;
+  const { StartHour, IntervalHours, IsStrictLock } = req.body;
   try {
-    await pool.query("UPDATE Schedules SET StartHour=$1, IntervalHours=$2", [StartHour, IntervalHours]);
+    await pool.query("UPDATE Schedules SET StartHour=$1, IntervalHours=$2, IsStrictLock=$3", [StartHour, IntervalHours, IsStrictLock]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -89,23 +92,27 @@ app.put("/api/schedules", authenticateToken, async (req, res) => {
 app.post("/api/scan", authenticateToken, async (req, res) => {
   const { barcode, lat, lng, method } = req.body; 
   try {
-    // --- [KODE BARU]: GEMBOK SERVER ANTI HACKING JAM HP ---
-    const schedRes = await pool.query("SELECT StartHour, IntervalHours FROM Schedules LIMIT 1");
+    // --- GEMBOK SERVER ANTI HACKING JAM HP ---
+    const schedRes = await pool.query("SELECT StartHour, IntervalHours, IsStrictLock FROM Schedules LIMIT 1");
     if (schedRes.rows.length > 0) {
-      const startH = parseInt(schedRes.rows[0].starthour);
-      const intH = parseInt(schedRes.rows[0].intervalhours) || 1;
+      const isStrict = schedRes.rows[0].isstrictlock;
       
-      const validHours = [];
-      for(let i=0; i < Math.floor(24/intH); i++) {
-        validHours.push((startH + (i * intH)) % 24);
-      }
-      
-      // Ambil jam saat ini langsung dari Server / Database (WIB), mengabaikan jam HP pengguna
-      const timeRes = await pool.query("SELECT EXTRACT(HOUR FROM NOW() + INTERVAL '7 hours') as curr_hour");
-      const currentServerHour = parseInt(timeRes.rows[0].curr_hour);
+      // HANYA JALANKAN GEMBOK JIKA FITUR DIAKTIFKAN DI UI
+      if (isStrict === true) {
+        const startH = parseInt(schedRes.rows[0].starthour);
+        const intH = parseInt(schedRes.rows[0].intervalhours) || 1;
+        
+        const validHours = [];
+        for(let i=0; i < Math.floor(24/intH); i++) {
+          validHours.push((startH + (i * intH)) % 24);
+        }
+        
+        const timeRes = await pool.query("SELECT EXTRACT(HOUR FROM NOW() + INTERVAL '7 hours') as curr_hour");
+        const currentServerHour = parseInt(timeRes.rows[0].curr_hour);
 
-      if (!validHours.includes(currentServerHour)) {
-        return res.status(403).json({ ok: false, error: "DITOLAK: Di luar jam jadwal patroli! Tunggu sesi berikutnya." });
+        if (!validHours.includes(currentServerHour)) {
+          return res.status(403).json({ ok: false, error: "DITOLAK: Di luar jam jadwal patroli! Tunggu sesi berikutnya." });
+        }
       }
     }
     // --- BATAS KODE BARU ---
@@ -425,5 +432,6 @@ app.get(/^\/(?!api).*/, (req, res) => {
 });
 
 module.exports = app;
+
 
 

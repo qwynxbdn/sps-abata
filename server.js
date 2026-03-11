@@ -89,6 +89,27 @@ app.put("/api/schedules", authenticateToken, async (req, res) => {
 app.post("/api/scan", authenticateToken, async (req, res) => {
   const { barcode, lat, lng, method } = req.body; 
   try {
+    // --- [KODE BARU]: GEMBOK SERVER ANTI HACKING JAM HP ---
+    const schedRes = await pool.query("SELECT StartHour, IntervalHours FROM Schedules LIMIT 1");
+    if (schedRes.rows.length > 0) {
+      const startH = parseInt(schedRes.rows[0].starthour);
+      const intH = parseInt(schedRes.rows[0].intervalhours) || 1;
+      
+      const validHours = [];
+      for(let i=0; i < Math.floor(24/intH); i++) {
+        validHours.push((startH + (i * intH)) % 24);
+      }
+      
+      // Ambil jam saat ini langsung dari Server / Database (WIB), mengabaikan jam HP pengguna
+      const timeRes = await pool.query("SELECT EXTRACT(HOUR FROM NOW() + INTERVAL '7 hours') as curr_hour");
+      const currentServerHour = parseInt(timeRes.rows[0].curr_hour);
+
+      if (!validHours.includes(currentServerHour)) {
+        return res.status(403).json({ ok: false, error: "DITOLAK: Di luar jam jadwal patroli! Tunggu sesi berikutnya." });
+      }
+    }
+    // --- BATAS KODE BARU ---
+
     const cpRes = await pool.query("SELECT * FROM Checkpoints WHERE BarcodeValue = $1 AND Active = TRUE", [barcode]);
     if (cpRes.rows.length === 0) return res.status(404).json({ ok: false, error: "Checkpoint tidak ditemukan!" });
 
@@ -404,4 +425,5 @@ app.get(/^\/(?!api).*/, (req, res) => {
 });
 
 module.exports = app;
+
 

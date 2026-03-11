@@ -1075,15 +1075,6 @@ app.openDataModal = () => {
     app.downloadPDF = async () => {
       const m = document.getElementById('reportMonth').value;
       const y = document.getElementById('reportYear').value;
-
-      // 1. Buka tab baru SEBELUM proses API agar tidak diblokir Safari/Chrome
-      const previewWindow = window.open('', '_blank');
-      if (previewWindow) {
-        previewWindow.document.write('<h3 style="font-family:sans-serif; text-align:center; margin-top:20%; color:#0d6efd;">Sedang menyusun laporan...</h3>');
-      } else {
-        return UI.alert('Pop-up Diblokir', 'Mohon izinkan pop-up (Pop-ups allowed) di browser Anda untuk melihat laporan.');
-      }
-
       UI.showLoader();
 
       try {
@@ -1128,22 +1119,25 @@ app.openDataModal = () => {
           }
         };
 
-        // 2. Suntikkan file PDF ke Tab Baru yang sudah dibuka tadi
+        // --- KEMBALI KE TEKNIK LAMA (TANPA TAB BARU) ---
         pdfMake.createPdf(docDefinition).getBlob((blob) => {
           const url = URL.createObjectURL(blob);
-          if (previewWindow) {
-            previewWindow.location.href = url;
-            // Beri judul tab
-            setTimeout(() => { previewWindow.document.title = `Rekap_List_${m}_${y}`; }, 500);
-          }
-          UI.hideLoader();
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = url;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            setTimeout(() => {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }, 500); 
+          };
         });
 
       } catch (err) {
-        if (previewWindow) previewWindow.close(); // Tutup tab jika error
         UI.alert('Gagal Mengambil Data', err.message);
-        UI.hideLoader();
       }
+      UI.hideLoader();
     };
 
     // Tambahkan ini di dalam bagian script Anda (bisa diletakkan setelah app.downloadPDF)
@@ -1151,15 +1145,6 @@ app.openDataModal = () => {
 app.downloadMatrixReport = async () => {
       const month = document.getElementById('reportMonth').value;
       const year = document.getElementById('reportYear').value;
-
-      // 1. Buka tab baru SEBELUM proses API agar tidak diblokir Safari/Chrome
-      const previewWindow = window.open('', '_blank');
-      if (previewWindow) {
-        previewWindow.document.write('<h3 style="font-family:sans-serif; text-align:center; margin-top:20%; color:#198754;">Sedang melukis Matrix Checklist...</h3>');
-      } else {
-        return UI.alert('Pop-up Diblokir', 'Mohon izinkan pop-up (Pop-ups allowed) di browser Anda untuk melihat laporan.');
-      }
-
       UI.showLoader();
 
       try {
@@ -1277,21 +1262,25 @@ app.downloadMatrixReport = async () => {
           }
         };
 
-        // 2. Suntikkan file PDF ke Tab Baru yang sudah dibuka tadi
+        // --- KEMBALI KE TEKNIK LAMA (TANPA TAB BARU) ---
         pdfMake.createPdf(docDefinition).getBlob((blob) => {
           const url = URL.createObjectURL(blob);
-          if (previewWindow) {
-            previewWindow.location.href = url;
-            setTimeout(() => { previewWindow.document.title = `Matrix_${month}_${year}`; }, 500);
-          }
-          UI.hideLoader();
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = url;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            setTimeout(() => {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }, 500); 
+          };
         });
         
       } catch (err) { 
-        if (previewWindow) previewWindow.close();
         UI.alert('Error', err.message); 
-        UI.hideLoader();
       }
+      UI.hideLoader();
     };
 
  
@@ -1679,6 +1668,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

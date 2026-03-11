@@ -1120,24 +1120,46 @@ app.openDataModal = () => {
         };
 
         // --- KEMBALI KE TEKNIK LAMA (TANPA TAB BARU) ---
+        // --- TRIK ANTI-BLOCK IOS & DESKTOP ---
         pdfMake.createPdf(docDefinition).getBlob((blob) => {
           const url = URL.createObjectURL(blob);
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = url;
-          document.body.appendChild(iframe);
-          iframe.onload = () => {
-            setTimeout(() => {
-              iframe.contentWindow.focus();
-              iframe.contentWindow.print();
-            }, 500); 
-          };
+          
+          // Deteksi apakah perangkat adalah iPhone/iPad (iOS)
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+          if (isIOS) {
+            // Khusus iOS: Pancing menu Overlay Native bawaan iPhone (View / Download)
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Rekap_List_Patroli_${m}_${y}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            UI.hideLoader();
+          } else {
+            // Khusus Desktop / Android: Gunakan Iframe tersembunyi (tanpa display:none)
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
+            iframe.style.border = 'none';
+            iframe.style.visibility = 'hidden';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            iframe.onload = () => {
+              setTimeout(() => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                UI.hideLoader();
+              }, 500); 
+            };
+          }
         });
 
       } catch (err) {
         UI.alert('Gagal Mengambil Data', err.message);
+        UI.hideLoader();
       }
-      UI.hideLoader();
     };
 
     // Tambahkan ini di dalam bagian script Anda (bisa diletakkan setelah app.downloadPDF)
@@ -1263,24 +1285,46 @@ app.downloadMatrixReport = async () => {
         };
 
         // --- KEMBALI KE TEKNIK LAMA (TANPA TAB BARU) ---
+        // --- TRIK ANTI-BLOCK IOS & DESKTOP ---
         pdfMake.createPdf(docDefinition).getBlob((blob) => {
           const url = URL.createObjectURL(blob);
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = url;
-          document.body.appendChild(iframe);
-          iframe.onload = () => {
-            setTimeout(() => {
-              iframe.contentWindow.focus();
-              iframe.contentWindow.print();
-            }, 500); 
-          };
+          
+          // Deteksi apakah perangkat adalah iPhone/iPad (iOS)
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+          if (isIOS) {
+            // Khusus iOS: Pancing menu Overlay Native bawaan iPhone (View / Download)
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Matrix_Patroli_${month}_${year}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            UI.hideLoader();
+          } else {
+            // Khusus Desktop / Android: Gunakan Iframe tersembunyi (tanpa display:none)
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
+            iframe.style.border = 'none';
+            iframe.style.visibility = 'hidden';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            iframe.onload = () => {
+              setTimeout(() => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                UI.hideLoader();
+              }, 500); 
+            };
+          }
         });
         
       } catch (err) { 
         UI.alert('Error', err.message); 
+        UI.hideLoader();
       }
-      UI.hideLoader();
     };
 
  
@@ -1668,6 +1712,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 

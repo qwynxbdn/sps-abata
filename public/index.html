@@ -359,13 +359,13 @@
                       <small class="text-muted">Jeda waktu antar shift</small>
                     </div>
 
-                    <div class="mb-4">
-                      <label class="form-label fw-bold">Pengunci Jadwal Ketat</label>
-                      <select id="setStrictLock" class="form-select">
-                        <option value="true">Aktif (Kunci tombol scan saat di luar jam)</option>
-                        <option value="false">Non-Aktif (Bebas scan kapan saja)</option>
-                      </select>
-                      <small class="text-muted">Jika diaktifkan, Guard tidak bisa mencuri start atau absen di luar jadwal.</small>
+                   <div class="mb-4 p-3 bg-light rounded border border-2 border-white shadow-sm">
+                      <label class="form-label fw-bold d-block mb-2"><i class="bi bi-shield-lock text-primary"></i> Pengunci Jadwal Ketat</label>
+                      <div class="form-check form-switch fs-4 mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="setStrictLock" checked>
+                        <label class="form-check-label fs-6 mt-1 ms-2" for="setStrictLock" id="lockLabelText">Aktif</label>
+                      </div>
+                      <small class="text-muted d-block lh-sm">Jika menyala (Aktif), Guard hanya bisa scan sesuai jam jadwal yang ditentukan. Matikan jika ada kondisi darurat.</small>
                     </div>
                     
                     <button class="btn btn-primary w-100 fw-bold" onclick="app.saveScheduleSettings()">
@@ -1507,8 +1507,11 @@ app.downloadMatrixReport = async () => {
         if (res.ok && res.data) {
           document.getElementById('setStartHour').value = res.data.starthour;
           document.getElementById('setInterval').value = res.data.intervalhours;
-          // Set saklar dropdown sesuai data
-          document.getElementById('setStrictLock').value = res.data.isstrictlock === false ? 'false' : 'true'; 
+          
+          // Set posisi Switch (Nyala / Mati)
+          const isLocked = res.data.isstrictlock !== false; // Default true
+          document.getElementById('setStrictLock').checked = isLocked;
+          document.getElementById('lockLabelText').innerText = isLocked ? 'Aktif (Terjadwal)' : 'Non-Aktif (Bebas)';
         }
       } catch (e) { 
         UI.alert('Gagal memuat jadwal', e.message); 
@@ -1522,12 +1525,13 @@ app.downloadMatrixReport = async () => {
         const p = {
           StartHour: parseInt(document.getElementById('setStartHour').value),
           IntervalHours: parseInt(document.getElementById('setInterval').value),
-          IsStrictLock: document.getElementById('setStrictLock').value === 'true' // Ambil nilai saklar
+          
+          // Ambil status Switch (true jika nyala, false jika mati)
+          IsStrictLock: document.getElementById('setStrictLock').checked 
         };
         const res = await apiCall('schedules', p, 'PUT');
         if (res.ok) {
           Swal.fire('Berhasil!', 'Pengaturan jadwal dan kunci keamanan berhasil diperbarui.', 'success');
-          // Update layar scanner agar langsung terbuka/terkunci jika status berubah
           app.checkScheduleEnforcement();
         }
       } catch (e) { 
@@ -1535,6 +1539,11 @@ app.downloadMatrixReport = async () => {
       }
       UI.hideLoader();
     };
+
+    // Efek visual saat saklar digeser
+    document.getElementById('setStrictLock').addEventListener('change', function() {
+      document.getElementById('lockLabelText').innerText = this.checked ? 'Aktif (Terjadwal)' : 'Non-Aktif (Bebas)';
+    });
 
     // --- FUNGSI UNIVERSAL UNTUK MENGHAPUS DATA ---
     app.deleteData = async (endpoint, id) => {
@@ -1779,6 +1788,7 @@ app.downloadMatrixReport = async () => {
 </body>
 
 </html>
+
 
 
 
